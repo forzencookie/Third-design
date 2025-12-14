@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { renderWithProviders } from "@/test-utils"
-import { ReceiptsTable } from "../receipts-table"
+import { ReceiptsTable } from "../invoices/receipts-table"
 import { RECEIPT_STATUSES } from "@/lib/status-types"
 
 // Mock ResizeObserver

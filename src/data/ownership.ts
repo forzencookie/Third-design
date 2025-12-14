@@ -564,7 +564,7 @@ export function calculateEgenavgifter(income: number, year: number = 2024): Egen
     efterlevandepension: 0.0060,
     arbetsmarknad: 0.0010,
   };
-  
+
   const calculated = {
     sjukforsakring: Math.round(income * rates.sjukforsakring),
     foraldraforsakring: Math.round(income * rates.foraldraforsakring),
@@ -573,17 +573,17 @@ export function calculateEgenavgifter(income: number, year: number = 2024): Egen
     arbetsmarknad: Math.round(income * rates.arbetsmarknad),
     total: 0,
   };
-  
-  calculated.total = 
+
+  calculated.total =
     calculated.sjukforsakring +
     calculated.foraldraforsakring +
     calculated.alderspension +
     calculated.efterlevandepension +
     calculated.arbetsmarknad;
-  
+
   const schablonavdrag = Math.round(calculated.total * 0.25);
   const netEgenavgifter = calculated.total - schablonavdrag;
-  
+
   return {
     year,
     income,
@@ -622,67 +622,5 @@ export interface SupplierInvoice {
 }
 
 export const mockSupplierInvoices: SupplierInvoice[] = [
-  {
-    id: 'si-1',
-    invoiceNumber: 'F2024-1234',
-    supplierName: 'Kontorsleverantören AB',
-    supplierOrgNumber: '556123-4567',
-    invoiceDate: '2024-12-01',
-    dueDate: '2024-12-31',
-    amount: 4000,
-    vatAmount: 1000,
-    totalAmount: 5000,
-    currency: 'SEK',
-    status: 'mottagen',
-    category: 'Kontorsmaterial',
-    accountNumber: '6110',
-    bankgiro: '123-4567',
-  },
-  {
-    id: 'si-2',
-    invoiceNumber: 'INV-5678',
-    supplierName: 'IT-Konsulten AB',
-    supplierOrgNumber: '556234-5678',
-    invoiceDate: '2024-11-25',
-    dueDate: '2024-12-25',
-    amount: 40000,
-    vatAmount: 10000,
-    totalAmount: 50000,
-    currency: 'SEK',
-    status: 'attesterad',
-    category: 'IT-tjänster',
-    accountNumber: '6540',
-    bankgiro: '234-5678',
-  },
-  {
-    id: 'si-3',
-    invoiceNumber: '2024/0892',
-    supplierName: 'Hyresvärden AB',
-    invoiceDate: '2024-12-01',
-    dueDate: '2024-12-31',
-    amount: 20000,
-    vatAmount: 5000,
-    totalAmount: 25000,
-    currency: 'SEK',
-    status: 'betald',
-    paymentDate: '2024-12-10',
-    category: 'Lokalhyra',
-    accountNumber: '5010',
-    bankgiro: '345-6789',
-  },
-  {
-    id: 'si-4',
-    invoiceNumber: 'F-11234',
-    supplierName: 'Telebolag AB',
-    invoiceDate: '2024-11-01',
-    dueDate: '2024-11-30',
-    amount: 800,
-    vatAmount: 200,
-    totalAmount: 1000,
-    currency: 'SEK',
-    status: 'förfallen',
-    category: 'Telefoni',
-    accountNumber: '6212',
-    notes: 'Påminnelse skickad',
-  },
+  // Empty array to start fresh
 ];

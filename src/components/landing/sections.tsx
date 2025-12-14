@@ -8,7 +8,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { IntegrationLogos } from "@/components/integration-logos"
+import { IntegrationLogos } from "../settings/integration-logos"
 
 import { Section, StatusBadge, DitherPattern } from "./ui"
 

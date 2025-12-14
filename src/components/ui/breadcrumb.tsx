@@ -1,11 +1,16 @@
+"use client"
+
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
-import { ChevronRight, MoreHorizontal, Bot } from "lucide-react"
+import { ChevronRight, MoreHorizontal } from "lucide-react"
+import { useRouter, usePathname } from "next/navigation"
 
 import { cn } from "@/lib/utils"
+import { Button, AIButton } from "@/components/ui/button"
+import { useAIChat } from "@/providers/ai-chat-provider"
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<"nav">) {
-  return <nav aria-label="breadcrumb" data-slot="breadcrumb" className={cn("flex items-center justify-between w-full", className)} {...props} />
+  return <nav aria-label="breadcrumb" data-slot="breadcrumb" className={cn("flex items-center", className)} {...props} />
 }
 
 function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
@@ -98,19 +103,48 @@ function BreadcrumbEllipsis({
   )
 }
 
-function BreadcrumbAIBadge({ className, ...props }: React.ComponentProps<"span">) {
+function BreadcrumbAIBadge({ className, ...props }: React.ComponentProps<"div">) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const { openChat } = useAIChat()
+  
+  const isInAIWorkspace = pathname === "/ai-workspace"
+  
+  const handleSwitch = () => {
+    if (isInAIWorkspace) {
+      router.push("/dashboard/inbox")
+    } else {
+      router.push("/ai-workspace")
+    }
+  }
+  
+  const handleOpenChat = () => {
+    openChat()
+  }
+  
   return (
-    <span
+    <div
       data-slot="breadcrumb-ai-badge"
       className={cn(
-        "inline-flex items-center justify-center rounded-md bg-purple-100/50 dark:bg-purple-900/20 p-1.5",
+        "inline-flex items-center gap-1.5 relative z-50",
         className
       )}
       {...props}
     >
-      <Bot className="size-4 text-purple-600 dark:text-purple-400" />
-      <span className="sr-only">AI-driven</span>
-    </span>
+      {/* AI button - opens chat dialog */}
+      <AIButton onClick={handleOpenChat} />
+      
+      {/* Mode switch button */}
+      <Button
+        type="button"
+        variant="default"
+        size="sm"
+        className="h-7 px-2.5 text-xs"
+        onClick={handleSwitch}
+      >
+        {isInAIWorkspace ? "Byt till normalläge" : "Byt till AI-läge"}
+      </Button>
+    </div>
   )
 }
 

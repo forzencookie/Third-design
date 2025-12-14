@@ -66,14 +66,7 @@ export function ArsredovisningContent() {
                     title="AI-årsredovisning"
                     description="Genereras automatiskt från bokföringen enligt K2."
                     variant="ai"
-                    action={
-                        <button 
-                            onClick={() => setShowAIDialog(true)}
-                            className="px-4 py-2 rounded-lg font-medium bg-white dark:bg-purple-900/60 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-800/50 transition-colors text-sm"
-                        >
-                            Generera
-                        </button>
-                    }
+                    onAction={() => setShowAIDialog(true)}
                 />
 
                 <ArsredovisningWizardDialog 

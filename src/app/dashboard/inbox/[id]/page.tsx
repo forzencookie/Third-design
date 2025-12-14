@@ -2,11 +2,11 @@
 
 import { use } from "react"
 import { useRouter } from "next/navigation"
-import { 
-    ArrowLeft, 
-    Building2, 
-    Download, 
-    Star, 
+import {
+    ArrowLeft,
+    Building2,
+    Download,
+    Star,
     StarOff,
     Printer,
     ExternalLink,
@@ -14,16 +14,64 @@ import {
     FileText,
     Calendar,
     Tag,
+    ArrowRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { mockInboxItems, categoryColors, categoryLabels } from "@/data/inbox"
+import { Card } from "@/components/ui/card"
+import { useToast } from "@/components/ui/toast"
+import { categoryColors, categoryLabels } from "@/data/inbox"
+import { InboxItem } from "@/types"
+import { useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
+import { InvoiceDocument, ReceiptDocument } from "@/components/documents"
 
 export default function MessagePage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params)
     const router = useRouter()
-    
-    const item = mockInboxItems.find(i => i.id === id)
-    
+    const toast = useToast()
+    const [item, setItem] = useState<InboxItem | null>(null)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        const fetchItem = async () => {
+            try {
+                // Fetch all items from the API to find the specific one
+                // Ideally this should be a dedicated endpoint /api/inbox/[id]
+                const response = await fetch('/api/inbox')
+                const data = await response.json()
+                if (data.items) {
+                    const foundItem = data.items.find((i: InboxItem) => i.id === id)
+                    setItem(foundItem || null)
+                }
+            } catch (error) {
+                console.error("Failed to fetch inbox item:", error)
+            } finally {
+                setLoading(false)
+            }
+        }
+        fetchItem()
+    }, [id])
+
+    if (loading) {
+        return <div className="p-6">Laddar...</div>
+    }
+
+    const handleDownload = () => {
+        toast.info("Nedladdning påbörjad", `${item?.title || 'Dokument'} laddas ner som PDF`)
+    }
+
+    const handlePrint = () => {
+        toast.info("Skriver ut", `${item?.title || 'Dokument'} skickas till skrivaren`)
+    }
+
+    const handleOpenInKivra = () => {
+        toast.info("Öppnar i Kivra", `${item?.title || 'Dokument'} öppnas i Kivra-appen`)
+    }
+
+    const handleAiAction = () => {
+        toast.success("AI-åtgärd utförd", item?.aiSuggestion || "Åtgärden har genomförts")
+    }
+
     if (!item) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
@@ -39,9 +87,9 @@ export default function MessagePage({ params }: { params: Promise<{ id: string }
     return (
         <div className="flex flex-col gap-6 p-6 max-w-4xl">
             {/* Back button */}
-            <Button 
-                variant="ghost" 
-                size="sm" 
+            <Button
+                variant="ghost"
+                size="sm"
                 className="w-fit -ml-2"
                 onClick={() => router.push("/dashboard/inbox")}
             >
@@ -67,15 +115,15 @@ export default function MessagePage({ params }: { params: Promise<{ id: string }
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={handleDownload}>
                         <Download className="h-4 w-4 mr-2" />
                         Ladda ner
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={handlePrint}>
                         <Printer className="h-4 w-4 mr-2" />
                         Skriv ut
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={handleOpenInKivra}>
                         <ExternalLink className="h-4 w-4 mr-2" />
                         Öppna i Kivra
                     </Button>
@@ -94,42 +142,91 @@ export default function MessagePage({ params }: { params: Promise<{ id: string }
                 </div>
                 <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4" />
-                    <span>PDF-dokument</span>
+                    <span>{item.documentData ? 'Faktura/Kvitto' : 'PDF-dokument'}</span>
                 </div>
             </div>
 
             {/* AI Suggestion */}
             {item.aiSuggestion && (
-                <div className="flex items-start gap-3 p-4 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/30">
-                    <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400 mt-0.5" />
-                    <div>
-                        <p className="text-sm font-medium text-purple-900 dark:text-purple-100">AI-förslag</p>
-                        <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">{item.aiSuggestion}</p>
-                        <Button size="sm" className="mt-3 bg-purple-600 hover:bg-purple-700 text-white">
-                            Utför åtgärd
-                        </Button>
+                <div className={cn(
+                    "flex items-start gap-3 p-4 rounded-lg border",
+                    item.aiSuggestion.includes("✨")
+                        ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/30"
+                        : "bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/30"
+                )}>
+                    <Sparkles className={cn(
+                        "h-5 w-5 mt-0.5",
+                        item.aiSuggestion.includes("✨") ? "text-emerald-600 dark:text-emerald-400" : "text-purple-600 dark:text-purple-400"
+                    )} />
+                    <div className="flex-1">
+                        <p className={cn(
+                            "text-sm font-medium",
+                            item.aiSuggestion.includes("✨") ? "text-emerald-900 dark:text-emerald-100" : "text-purple-900 dark:text-purple-100"
+                        )}>
+                            AI-förslag
+                        </p>
+                        <p className={cn(
+                            "text-sm mt-1",
+                            item.aiSuggestion.includes("✨") ? "text-emerald-700 dark:text-emerald-300" : "text-purple-700 dark:text-purple-300"
+                        )}>
+                            {item.aiSuggestion}
+                        </p>
+
+                        {item.aiSuggestion.includes("✨") ? (
+                            <Button
+                                size="sm"
+                                className="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                onClick={() => {
+                                    if (item.aiSuggestion && item.aiSuggestion.includes("kvitto")) {
+                                        router.push('/dashboard/accounting?tab=receipts')
+                                    } else {
+                                        router.push('/dashboard/accounting?tab=leverantorsfakturor')
+                                    }
+                                }}
+                            >
+                                {item.aiSuggestion.includes("kvitto") ? "Visa kvitto / underlag" : "Visa leverantörsfaktura"}
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                        ) : (
+                            <Button size="sm" className="mt-3 bg-purple-600 hover:bg-purple-700 text-white" onClick={handleAiAction}>
+                                Utför åtgärd
+                            </Button>
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* Document preview placeholder */}
-            <div className="border-2 border-border/60 rounded-lg overflow-hidden">
+            {/* Document preview */}
+            <Card className="overflow-hidden">
                 <div className="bg-muted/30 px-4 py-2 border-b-2 border-border/60 flex items-center justify-between">
                     <span className="text-sm font-medium">Dokumentförhandsvisning</span>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={handleDownload}>
                         <Download className="h-4 w-4 mr-2" />
                         Ladda ner PDF
                     </Button>
                 </div>
-                <div className="aspect-[3/4] max-h-[600px] bg-white dark:bg-neutral-900 flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                        <FileText className="h-16 w-16 mx-auto mb-4 opacity-30" />
-                        <p className="text-sm">{item.title}</p>
-                        <p className="text-xs mt-1">Från {item.sender}</p>
-                        <p className="text-xs mt-4 max-w-md mx-auto px-8">{item.description}</p>
+
+                {/* Render actual invoice or receipt document */}
+                {item.documentData ? (
+                    <div className="max-h-[800px] overflow-y-auto">
+                        {item.documentData.type === 'invoice' && (
+                            <InvoiceDocument data={item.documentData} />
+                        )}
+                        {item.documentData.type === 'receipt' && (
+                            <ReceiptDocument data={item.documentData} />
+                        )}
                     </div>
-                </div>
-            </div>
+                ) : (
+                    <div className="aspect-[3/4] max-h-[600px] bg-white dark:bg-neutral-900 flex items-center justify-center">
+                        <div className="text-center text-muted-foreground">
+                            <FileText className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                            <p className="text-sm">{item.title}</p>
+                            <p className="text-xs mt-1">Från {item.sender}</p>
+                            <p className="text-xs mt-4 max-w-md mx-auto px-8">{item.description}</p>
+                        </div>
+                    </div>
+                )}
+            </Card>
         </div>
     )
 }

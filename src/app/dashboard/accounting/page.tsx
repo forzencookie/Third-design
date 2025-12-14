@@ -1,7 +1,9 @@
 "use client"
 
-import { useCallback, Suspense, useMemo } from "react"
+import { useCallback, Suspense, useMemo, useEffect, useState, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
+import { useToast } from "@/components/ui/toast"
+import type { TransactionWithAI } from "@/types"
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -20,61 +22,71 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { 
-    BookOpen, 
-    Receipt, 
+import {
+    BookOpen,
+    Receipt,
     ClipboardCheck,
     FileText,
     Building2,
     List,
+    RefreshCw,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
-import { mockTransactions } from "@/data/transactions"
-import { 
-    LazyTransactionsTable, 
-    LazyReceiptsTable, 
-    LazyInvoicesTable, 
-    LazyVerifikationerTable 
-} from "@/components/lazy-modules"
+import { TRANSACTION_STATUS_LABELS } from "@/lib/localization"
+
+import {
+    LazyTransactionsTable,
+    LazyReceiptsTable,
+    LazyInvoicesTable,
+    LazyVerifikationerTable
+} from "@/components/shared"
 import { useFeature } from "@/providers/company-provider"
-import { LeverantorsfakturorTable } from "@/components/leverantorsfakturor-table"
-import { Huvudbok } from "@/components/huvudbok"
+import { LeverantorsfakturorTable, type LeverantorsfakturorTableRef } from "@/components/invoices"
+import { Huvudbok } from "@/components/accounting"
+import { useTextMode } from "@/providers/text-mode-provider"
 
-// Tab configuration with feature requirements
+// Tab configuration with feature requirements and translations
 const allTabs = [
     {
         id: "transaktioner",
-        label: "Transaktioner",
+        labelEnkel: "Pengar in & ut",
+        labelAvancerad: "Transaktioner",
         icon: BookOpen,
         feature: null, // Available to all
     },
     {
         id: "kundfakturor",
-        label: "Kundfakturor",
+        labelEnkel: "Skicka fakturor",
+        labelAvancerad: "Kundfakturor",
         icon: FileText,
         feature: null, // Available to all
     },
     {
         id: "leverantorsfakturor",
-        label: "Leverantörsfakturor",
+        labelEnkel: "Fakturor att betala",
+        labelAvancerad: "Leverantörsfakturor",
         icon: Building2,
         feature: 'leverantorsfakturor' as const,
     },
     {
         id: "kvitton",
-        label: "Kvitton",
+        labelEnkel: "Kvitton & underlag",
+        labelAvancerad: "Kvitton",
         icon: Receipt,
         feature: null, // Available to all
     },
     {
         id: "verifikationer",
-        label: "Verifikationer",
+        labelEnkel: "Alla bokningar",
+        labelAvancerad: "Verifikationer",
         icon: ClipboardCheck,
         feature: 'verifikationer' as const, // Part of proper bookkeeping
     },
     {
         id: "huvudbok",
-        label: "Huvudbok",
+        labelEnkel: "Kontoöversikt",
+        labelAvancerad: "Huvudbok",
         icon: List,
         feature: null, // Available to all - general ledger view
     },
@@ -85,11 +97,95 @@ const allTabs = [
 function AccountingPageContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
+    const toast = useToast()
     const currentTab = searchParams.get("tab") || "transaktioner"
+
+    // Ref for supplier invoices table
+    const supplierInvoicesRef = useRef<LeverantorsfakturorTableRef>(null)
+
+    // Fetch PROCESSED transactions from API
+    const [apiTransactions, setApiTransactions] = useState<TransactionWithAI[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+
+    const fetchTransactions = async () => {
+        try {
+            // Use the processed endpoint which clothes naked transactions
+            const response = await fetch('/api/transactions/processed', {
+                cache: 'no-store',
+            })
+            const data = await response.json()
+
+            if (data.transactions && data.transactions.length > 0) {
+                // Transactions are already processed with correct properties
+                setApiTransactions(data.transactions)
+            } else {
+                setApiTransactions([])
+            }
+        } catch (error) {
+            console.error('Failed to fetch transactions:', error)
+        } finally {
+            setIsLoading(false)
+            setLastRefresh(new Date())
+        }
+    }
+
+    // Initial fetch
+    useEffect(() => {
+        fetchTransactions()
+    }, [])
+
+    // Auto-refresh every 5 seconds when on transactions tab
+    useEffect(() => {
+        if (currentTab !== "transaktioner") return
+
+        // const interval = setInterval(() => {
+        //     fetchTransactions()
+        // }, 5000)
+
+        // return () => clearInterval(interval)
+    }, [currentTab])
+
+    // Manual refresh function
+    const handleRefresh = () => {
+        setIsLoading(true)
+        if (currentTab === "leverantorsfakturor") {
+            // Refresh supplier invoices table
+            supplierInvoicesRef.current?.refresh()
+            setIsLoading(false)
+            setLastRefresh(new Date())
+        } else {
+            // Refresh transactions (default)
+            fetchTransactions()
+        }
+    }
+
+    // Use only API transactions (no mock data)
+    const transactions = apiTransactions
+
+    // Handle transaction booking - update the transaction status
+    const handleTransactionBooked = useCallback((transactionId: string, bookingData: { category: string; debitAccount: string; creditAccount: string }) => {
+        setApiTransactions(prev =>
+            prev.map(t =>
+                t.id === transactionId
+                    ? {
+                        ...t,
+                        status: TRANSACTION_STATUS_LABELS.RECORDED,
+                        category: bookingData.category,
+                        account: `${bookingData.debitAccount} / ${bookingData.creditAccount}`,
+                    }
+                    : t
+            )
+        )
+        toast.success('Transaktion bokförd', `Bokförd på konto ${bookingData.debitAccount}`)
+    }, [toast])
 
     // Feature checks for conditional tabs
     const hasLeverantorsfakturor = useFeature('leverantorsfakturor')
     const hasVerifikationer = useFeature('verifikationer')
+
+    // Text mode for Enkel/Avancerad labels
+    const { isEnkel } = useTextMode()
 
     // Filter tabs based on available features
     const tabs = useMemo(() => {
@@ -101,12 +197,18 @@ function AccountingPageContent() {
         })
     }, [hasLeverantorsfakturor, hasVerifikationer])
 
+    // Helper to get the correct label based on mode
+    const getTabLabel = (tab: typeof allTabs[0]) => {
+        return isEnkel ? tab.labelEnkel : tab.labelAvancerad
+    }
+
     const setCurrentTab = useCallback((tab: string) => {
         router.push(`/dashboard/accounting?tab=${tab}`, { scroll: false })
     }, [router])
 
     // Get current tab label for breadcrumb
-    const currentTabLabel = tabs.find(t => t.id === currentTab)?.label || "Transaktioner"
+    const currentTabData = tabs.find(t => t.id === currentTab)
+    const currentTabLabel = currentTabData ? getTabLabel(currentTabData) : (isEnkel ? "Pengar in & ut" : "Transaktioner")
 
     return (
         <TooltipProvider>
@@ -121,7 +223,7 @@ function AccountingPageContent() {
                         <Breadcrumb>
                             <BreadcrumbList>
                                 <BreadcrumbItem>
-                                    <BreadcrumbLink href="/dashboard/accounting">Bokföring</BreadcrumbLink>
+                                    <BreadcrumbLink href="/dashboard/accounting">{isEnkel ? "Min bokföring" : "Bokföring"}</BreadcrumbLink>
                                 </BreadcrumbItem>
                                 <BreadcrumbSeparator />
                                 <BreadcrumbItem>
@@ -141,7 +243,7 @@ function AccountingPageContent() {
                             {tabs.map((tab) => {
                                 const isActive = currentTab === tab.id
                                 const Icon = tab.icon
-                                
+
                                 return (
                                     <Tooltip key={tab.id}>
                                         <TooltipTrigger asChild>
@@ -149,37 +251,57 @@ function AccountingPageContent() {
                                                 onClick={() => setCurrentTab(tab.id)}
                                                 className={cn(
                                                     "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                                                    isActive 
-                                                        ? "bg-primary/10 text-primary" 
+                                                    isActive
+                                                        ? "bg-primary/10 text-primary"
                                                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                                                 )}
                                             >
                                                 <Icon className="h-4 w-4" />
-                                                {isActive && <span>{tab.label}</span>}
+                                                {isActive && <span>{getTabLabel(tab)}</span>}
                                             </button>
                                         </TooltipTrigger>
                                         {!isActive && (
                                             <TooltipContent side="bottom">
-                                                <p>{tab.label}</p>
+                                                <p>{getTabLabel(tab)}</p>
                                             </TooltipContent>
                                         )}
                                     </Tooltip>
                                 )
                             })}
+
+                            {/* Last updated with refresh button */}
+                            <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+                                <span>
+                                    Senast uppdaterad: {lastRefresh.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleRefresh}
+                                    disabled={isLoading}
+                                    className="h-7 w-7 p-0"
+                                >
+                                    <RefreshCw className={cn(
+                                        "h-3.5 w-3.5",
+                                        isLoading && "animate-spin"
+                                    )} />
+                                </Button>
+                            </div>
                         </div>
 
                         {/* Content */}
                         {currentTab === "transaktioner" && (
-                            <LazyTransactionsTable 
-                                title="Transaktioner" 
-                                transactions={mockTransactions} 
+                            <LazyTransactionsTable
+                                title="Transaktioner"
+                                transactions={transactions}
+                                onTransactionBooked={handleTransactionBooked}
                             />
                         )}
                         {currentTab === "kundfakturor" && (
                             <LazyInvoicesTable />
                         )}
                         {currentTab === "leverantorsfakturor" && (
-                            <LeverantorsfakturorTable />
+                            <LeverantorsfakturorTable ref={supplierInvoicesRef} />
                         )}
                         {currentTab === "kvitton" && (
                             <LazyReceiptsTable />

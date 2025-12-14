@@ -4,6 +4,7 @@
 // ============================================
 
 import { getAccount, isDebitIncrease, isCreditIncrease, type Account } from '@/data/accounts';
+import { formatCurrency } from '@/lib/utils';
 
 // ============================================
 // Types
@@ -691,18 +692,6 @@ export function createFromTemplate(
  */
 export function roundToOre(amount: number): number {
   return Math.round(amount * 100) / 100;
-}
-
-/**
- * Format currency in Swedish format
- */
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('sv-SE', {
-    style: 'currency',
-    currency: 'SEK',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
 }
 
 /**

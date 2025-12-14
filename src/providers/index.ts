@@ -37,6 +37,23 @@ export {
     useCompanyType,
 } from "./company-provider"
 
+// Text mode provider (Enkel/Avancerad)
+export {
+    TextModeProvider,
+    useTextMode,
+    T,
+} from "./text-mode-provider"
+
+export type {
+    TextMode,
+} from "./text-mode-provider"
+
+// AI Chat provider
+export {
+    AIChatProvider,
+    useAIChat,
+} from "./ai-chat-provider"
+
 export type {
     AppProvidersProps,
     DataProviderProps,

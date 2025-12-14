@@ -177,7 +177,7 @@ export function DataTableCell({
                 "px-4 py-3",
                 align === "right" && "text-right",
                 align === "center" && "text-center",
-                mono && "font-mono",
+                mono && "tabular-nums",
                 muted && "text-muted-foreground",
                 bold && "font-medium",
                 className

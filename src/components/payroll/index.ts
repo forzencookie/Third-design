@@ -18,3 +18,6 @@ export {
 export { LonesbeskContent } from "./lonebesked-content"
 export { AGIContent } from "./agi-content"
 export { UtdelningContent } from "./utdelning-content"
+
+// Dialog components
+export { PayslipDetailsDialog } from "./payslip-details-dialog"

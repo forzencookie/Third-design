@@ -5,6 +5,7 @@ import {
     BreadcrumbItem,
     BreadcrumbList,
     BreadcrumbPage,
+    BreadcrumbAIBadge,
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -400,6 +401,7 @@ function AIRobotPageContent() {
                     </Breadcrumb>
                 </div>
                 <div className="flex items-center gap-2 px-4">
+                    <BreadcrumbAIBadge />
                     <Button
                         variant="ghost"
                         size="icon"

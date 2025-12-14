@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { InvoicesTable } from "../invoices-table"
+import { InvoicesTable } from "../invoices/invoices-table"
 import { INVOICE_STATUSES } from "@/lib/status-types"
 
 // Mock ResizeObserver

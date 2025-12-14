@@ -1,0 +1,105 @@
+"use client"
+
+import * as React from "react"
+import { Sparkles, type LucideIcon } from "lucide-react"
+
+import { NavMain, NavSettings, NavUser } from "./sidebar-nav"
+import { AdaptiveNavMain } from "./adaptive-nav"
+import { TeamSwitcher } from "./team-switcher"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+} from "@/components/ui/sidebar"
+import { SettingsDialog } from "../settings"
+
+// Import data from the data layer
+import {
+  mockUser,
+  mockTeams,
+  navPlatform,
+  navEconomy,
+  navSettings
+} from "@/data/navigation"
+
+interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  /** 'default' shows full navigation, 'minimal' shows empty sidebar with custom header */
+  variant?: "default" | "minimal"
+  /** Custom header config for minimal variant */
+  minimalHeader?: {
+    icon?: LucideIcon
+    iconClassName?: string
+    title: string
+    subtitle?: string
+  }
+}
+
+export function AppSidebar({
+  variant = "default",
+  minimalHeader,
+  ...props
+}: AppSidebarProps) {
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
+
+  // Default minimal header for AI workspace style
+  const header = minimalHeader ?? {
+    icon: Sparkles,
+    iconClassName: "text-purple-500",
+    title: "AI Workspace",
+    subtitle: "Ditt AI-verktyg"
+  }
+  const HeaderIcon = header.icon ?? Sparkles
+
+  if (variant === "minimal") {
+    return (
+      <Sidebar collapsible="icon" {...props}>
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" className="cursor-default hover:bg-transparent">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                  <HeaderIcon className={`size-4 ${header.iconClassName ?? "text-purple-500"}`} />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">{header.title}</span>
+                  {header.subtitle && (
+                    <span className="truncate text-xs text-muted-foreground">{header.subtitle}</span>
+                  )}
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+          {/* Empty - minimal variant has no navigation */}
+        </SidebarContent>
+        <SidebarRail />
+      </Sidebar>
+    )
+  }
+
+  return (
+    <>
+      <Sidebar collapsible="icon" {...props}>
+        <SidebarHeader>
+          <TeamSwitcher teams={mockTeams} />
+        </SidebarHeader>
+        <SidebarContent>
+          <NavMain items={navPlatform} />
+          <AdaptiveNavMain items={navEconomy} label="Ekonomi" />
+          <NavSettings items={navSettings} onSettingsClick={() => setSettingsOpen(true)} />
+        </SidebarContent>
+        <SidebarFooter>
+          <NavUser user={mockUser} />
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+    </>
+  )
+}

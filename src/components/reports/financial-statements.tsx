@@ -38,7 +38,7 @@ export function ResultatrakningContent() {
                             </DataTableCell>
                             <DataTableCell 
                                 className={cn(
-                                    "text-right font-mono",
+                                    "text-right tabular-nums",
                                     item.highlight && "bg-muted/30 font-semibold",
                                     item.value < 0 && "text-red-600 dark:text-red-500/70"
                                 )}
@@ -81,7 +81,7 @@ export function BalansrakningContent() {
                             </DataTableCell>
                             <DataTableCell 
                                 className={cn(
-                                    "text-right font-mono",
+                                    "text-right tabular-nums",
                                     item.highlight && "bg-muted/30 font-semibold",
                                     item.isHeader && "pt-4"
                                 )}

@@ -21,12 +21,8 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { LegalInfoCard, legalInfoContent } from '@/components/ui/legal-info-card';
 import { useCompany } from '@/providers/company-provider';
-import { Aktiebok } from '@/components/aktiebok';
-import { Delagare } from '@/components/delagare';
-import { Medlemsregister } from '@/components/medlemsregister';
-import { Styrelseprotokoll } from '@/components/styrelseprotokoll';
-import { Bolagsstamma } from '@/components/bolagsstamma';
-import { Arsmote } from '@/components/arsmote';
+import { Aktiebok, Delagare } from '@/components/ownership';
+import { Medlemsregister, Styrelseprotokoll, Bolagsstamma, Arsmote } from '@/components/corporate';
 import { 
   Users,
   User,

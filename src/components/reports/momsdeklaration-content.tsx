@@ -1,35 +1,168 @@
 "use client"
 
-import { useState } from "react"
-import { 
-    Calendar, 
-    Wallet, 
-    TrendingUp, 
-    Bot, 
-    Clock, 
-    Download, 
-    Send, 
+import { useState, useMemo } from "react"
+import {
+    Calendar,
+    Wallet,
+    TrendingUp,
+    Bot,
+    Clock,
+    Download,
+    Send,
     CheckCircle2,
     ArrowUpRight,
     ArrowDownRight,
+    Plus,
+    MoreHorizontal,
+    Trash2,
+    Eye,
+    Edit,
 } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
 import { IconButton, IconButtonGroup } from "@/components/ui/icon-button"
-import { 
-    DataTable, 
-    DataTableHeader, 
-    DataTableHeaderCell, 
-    DataTableBody, 
-    DataTableRow, 
-    DataTableCell 
+import { SearchBar } from "@/components/ui/search-bar"
+import { FilterButton } from "@/components/ui/filter-button"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+    DataTable,
+    DataTableHeader,
+    DataTableHeaderCell,
+    DataTableBody,
+    DataTableRow,
+    DataTableCell
 } from "@/components/ui/data-table"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { SectionCard } from "@/components/ui/section-card"
 import { AppStatusBadge } from "@/components/ui/status-badge"
+import { useToast } from "@/components/ui/toast"
+import { BulkActionToolbar, type BulkAction } from "../shared/bulk-action-toolbar"
 import { MomsWizardDialog } from "./ai-wizard-dialog"
-import { termExplanations, vatPeriods } from "./constants"
+import { MomsDetailDialog } from "./moms-detail-dialog"
+import { termExplanations } from "./constants"
+import { VatProcessor, type VatReport } from "@/lib/vat-processor"
+import { mockVerifikationer } from "@/lib/mock-data"
 
 export function MomsdeklarationContent() {
+    const toast = useToast()
+
+    // Calculate periods dynamically
+    const vatPeriodsState = useMemo(() => {
+        const periods = ["Q4 2024", "Q3 2024", "Q2 2024", "Q1 2024"]
+        return periods.map(p => {
+            // For older periods, we might simulate "submitted" if we had a backend
+            // For now we just calculate the numbers
+            const report = VatProcessor.calculateReport(mockVerifikationer, p)
+
+            // Simulation: Q1-Q3 are simulated as submitted
+            if (p !== "Q4 2024") report.status = "submitted"
+
+            return report
+        })
+    }, [])
+
     const [showAIDialog, setShowAIDialog] = useState(false)
+    const [searchQuery, setSearchQuery] = useState("")
+    const [statusFilter, setStatusFilter] = useState<string | null>(null)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [selectedReport, setSelectedReport] = useState<VatReport | null>(null)
+    const [vatPeriods, setVatPeriods] = useState<VatReport[]>(vatPeriodsState)
+
+    // Calculate stats from vatPeriods data
+    const stats = useMemo(() => {
+        const upcomingPeriod = vatPeriodsState.find(p => p.status === "upcoming")
+        if (upcomingPeriod) {
+            return {
+                nextPeriod: upcomingPeriod.period,
+                deadline: `Deadline: ${upcomingPeriod.dueDate}`,
+                salesVat: upcomingPeriod.salesVat,
+                inputVat: upcomingPeriod.inputVat,
+                netVat: upcomingPeriod.netVat,
+            }
+        }
+        const first = vatPeriodsState[0]
+        return {
+            nextPeriod: first?.period || "Ingen period",
+            deadline: first?.dueDate ? `Deadline: ${first.dueDate}` : "",
+            salesVat: first?.salesVat || 0,
+            inputVat: first?.inputVat || 0,
+            netVat: first?.netVat || 0,
+        }
+    }, [vatPeriodsState])
+
+    // Filter periods - use stateful vatPeriods for updates to persist
+    const filteredPeriods = useMemo(() => {
+        return vatPeriods.filter(period => {
+            const matchesSearch = !searchQuery ||
+                period.period.toLowerCase().includes(searchQuery.toLowerCase())
+            const matchesStatus = !statusFilter || period.status === statusFilter
+            return matchesSearch && matchesStatus
+        })
+    }, [searchQuery, statusFilter, vatPeriods])
+
+    // Toggle selection
+    const toggleSelection = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) {
+                next.delete(id)
+            } else {
+                next.add(id)
+            }
+            return next
+        })
+    }
+
+    const toggleAll = () => {
+        if (selectedIds.size === filteredPeriods.length) {
+            setSelectedIds(new Set())
+        } else {
+            setSelectedIds(new Set(filteredPeriods.map(p => p.period)))
+        }
+    }
+
+    // Bulk actions
+    const bulkActions: BulkAction[] = [
+        {
+            id: "delete",
+            label: "Ta bort",
+            icon: Trash2,
+            variant: "destructive",
+            onClick: (ids) => {
+                setVatPeriodsState(prev => prev.filter(p => !ids.includes(p.period)))
+                toast.success("Rapporter borttagna", `${ids.length} momsrapport(er) har tagits bort`)
+                setSelectedIds(new Set())
+            },
+        },
+        {
+            id: "send",
+            label: "Skicka till Skatteverket",
+            icon: Send,
+            onClick: (ids) => {
+                setVatPeriodsState(prev => prev.map(p =>
+                    ids.includes(p.period) ? { ...p, status: "submitted" as const } : p
+                ))
+                toast.success("Rapporter skickade", `${ids.length} momsdeklaration(er) skickades till Skatteverket`)
+                setSelectedIds(new Set())
+            },
+        },
+        {
+            id: "download",
+            label: "Ladda ner",
+            icon: Download,
+            onClick: (ids) => {
+                toast.info("Laddar ner", `Förbereder nedladdning av ${ids.length} rapport(er)...`)
+                setSelectedIds(new Set())
+            },
+        },
+    ]
 
     return (
         <main className="flex-1 flex flex-col p-6">
@@ -37,21 +170,21 @@ export function MomsdeklarationContent() {
                 <StatCardGrid columns={3}>
                     <StatCard
                         label="Nästa deklaration"
-                        value="Q4 2024"
-                        subtitle="Deadline: 12 feb 2025"
+                        value={stats.nextPeriod}
+                        subtitle={stats.deadline}
                         icon={Calendar}
                         tooltip={termExplanations["Momsdeklaration"]}
                     />
                     <StatCard
                         label="Moms att betala"
-                        value="80 000 kr"
-                        subtitle="Utgående: 125 000 kr"
+                        value={formatCurrency(stats.netVat)}
+                        subtitle={`Utgående: ${formatCurrency(stats.salesVat)}`}
                         icon={Wallet}
                         tooltip={termExplanations["Moms att betala"]}
                     />
                     <StatCard
                         label="Ingående moms"
-                        value="45 000 kr"
+                        value={formatCurrency(stats.inputVat)}
                         subtitle="Avdragsgill"
                         icon={TrendingUp}
                         tooltip={termExplanations["Ingående moms"]}
@@ -66,23 +199,59 @@ export function MomsdeklarationContent() {
                     title="AI-momsdeklaration"
                     description="Beräknas automatiskt från bokföringens momskonton (2610, 2640)."
                     variant="ai"
-                    action={
-                        <button 
-                            onClick={() => setShowAIDialog(true)}
-                            className="px-4 py-2 rounded-lg font-medium bg-white dark:bg-purple-900/60 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-800/50 transition-colors text-sm"
-                        >
-                            Generera
-                        </button>
+                    onAction={() => setShowAIDialog(true)}
+                />
+
+                <MomsWizardDialog
+                    open={showAIDialog}
+                    onOpenChange={setShowAIDialog}
+                />
+
+                <DataTable
+                    title="Momsperioder"
+                    headerActions={
+                        <div className="flex items-center gap-2">
+                            <SearchBar
+                                value={searchQuery}
+                                onChange={setSearchQuery}
+                                placeholder="Sök period..."
+                                className="w-48"
+                            />
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <FilterButton
+                                        label="Status"
+                                        isActive={!!statusFilter}
+                                    />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-40">
+                                    <DropdownMenuItem onClick={() => setStatusFilter(null)}>
+                                        Alla
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setStatusFilter("upcoming")}>
+                                        <Clock className="h-4 w-4 mr-2" />
+                                        Kommande
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setStatusFilter("submitted")}>
+                                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                                        Inskickad
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button size="sm" onClick={() => setShowAIDialog(true)}>
+                                <Plus className="h-4 w-4 mr-1.5" />
+                                Ny period
+                            </Button>
+                        </div>
                     }
-                />
-
-                <MomsWizardDialog 
-                    open={showAIDialog} 
-                    onOpenChange={setShowAIDialog} 
-                />
-
-                <DataTable title="Momsperioder">
+                >
                     <DataTableHeader>
+                        <DataTableHeaderCell className="w-10">
+                            <Checkbox
+                                checked={selectedIds.size === filteredPeriods.length && filteredPeriods.length > 0}
+                                onCheckedChange={toggleAll}
+                            />
+                        </DataTableHeaderCell>
                         <DataTableHeaderCell label="Period" icon={Calendar} />
                         <DataTableHeaderCell label="Deadline" icon={Clock} />
                         <DataTableHeaderCell label="Utgående moms" icon={ArrowUpRight} />
@@ -92,32 +261,86 @@ export function MomsdeklarationContent() {
                         <DataTableHeaderCell label="" />
                     </DataTableHeader>
                     <DataTableBody>
-                        {vatPeriods.map((item) => (
-                            <DataTableRow key={item.period}>
+                        {filteredPeriods.map((item) => (
+                            <DataTableRow
+                                key={item.period}
+                                selected={selectedIds.has(item.period)}
+                                onClick={() => setSelectedReport(item)}
+                                className="cursor-pointer"
+                            >
+                                <DataTableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                                    <Checkbox
+                                        checked={selectedIds.has(item.period)}
+                                        onCheckedChange={() => toggleSelection(item.period)}
+                                    />
+                                </DataTableCell>
                                 <DataTableCell bold>{item.period}</DataTableCell>
                                 <DataTableCell muted>{item.dueDate}</DataTableCell>
                                 <DataTableCell>{item.salesVat.toLocaleString("sv-SE")} kr</DataTableCell>
                                 <DataTableCell>{item.inputVat.toLocaleString("sv-SE")} kr</DataTableCell>
                                 <DataTableCell bold>{item.netVat.toLocaleString("sv-SE")} kr</DataTableCell>
                                 <DataTableCell>
-                                    <AppStatusBadge 
-                                        status={item.status === "upcoming" ? "Kommande" : "Inskickad"} 
+                                    <AppStatusBadge
+                                        status={item.status === "upcoming" ? "Kommande" : "Inskickad"}
                                     />
                                 </DataTableCell>
-                                <DataTableCell>
-                                    <IconButtonGroup>
-                                        <IconButton icon={Download} tooltip="Ladda ner" />
-                                        <IconButton 
-                                            icon={Send} 
-                                            tooltip={item.status === "upcoming" ? "Skicka" : "Redan inskickad"} 
-                                            disabled={item.status !== "upcoming"}
-                                        />
-                                    </IconButtonGroup>
+                                <DataTableCell onClick={(e) => e.stopPropagation()}>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-48">
+                                            <DropdownMenuItem onClick={() => setSelectedReport(item)}>
+                                                <Eye className="h-4 w-4 mr-2" />
+                                                Visa detaljer
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setSelectedReport(item)}>
+                                                <Edit className="h-4 w-4 mr-2" />
+                                                Redigera
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem>
+                                                <Download className="h-4 w-4 mr-2" />
+                                                Ladda ner
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem disabled={item.status !== "upcoming"}>
+                                                <Send className="h-4 w-4 mr-2" />
+                                                Skicka till Skatteverket
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem className="text-red-600">
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Ta bort
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </DataTableCell>
                             </DataTableRow>
                         ))}
                     </DataTableBody>
                 </DataTable>
+
+                <BulkActionToolbar
+                    selectedCount={selectedIds.size}
+                    selectedIds={Array.from(selectedIds)}
+                    onClearSelection={() => setSelectedIds(new Set())}
+                    actions={bulkActions}
+                />
+
+                {/* VAT Report Detail Dialog */}
+                <MomsDetailDialog
+                    report={selectedReport}
+                    open={!!selectedReport}
+                    onOpenChange={(open) => !open && setSelectedReport(null)}
+                    onSave={(updatedReport) => {
+                        setVatPeriods(prev => prev.map(p =>
+                            p.period === updatedReport.period ? updatedReport : p
+                        ))
+                        toast.success("Rapport uppdaterad", `Momsdeklaration för ${updatedReport.period} har sparats`)
+                        setSelectedReport(null)
+                    }}
+                />
             </div>
         </main>
     )

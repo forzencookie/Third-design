@@ -52,6 +52,7 @@ export const INVOICE_STATUS_LABELS = {
     SENT: "Skickad",
     DRAFT: "Utkast",
     OVERDUE: "Förfallen",
+    CANCELLED: "Makulerad",
 } as const
 
 // =============================================================================
@@ -96,7 +97,11 @@ export const GENERAL_STATUS_LABELS = {
     // Withdrawal types
     UTTAG: "Uttag",
     INSATTNING: "Insättning",
+    LON: "Lön",
 } as const
+
+// Type for GeneralStatus values
+export type GeneralStatus = (typeof GENERAL_STATUS_LABELS)[keyof typeof GENERAL_STATUS_LABELS]
 
 // =============================================================================
 // Supplier Invoice Statuses (Leverantörsfakturor)

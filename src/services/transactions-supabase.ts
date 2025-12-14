@@ -62,6 +62,7 @@ function mapTransactionToDb(transaction: Partial<Transaction>, userId: string): 
 
 function getIconForCategory(category: string): string {
   const iconMap: Record<string, string> = {
+    // English
     'Software': 'Smartphone',
     'Supplies': 'Tag',
     'Travel': 'Plane',
@@ -71,12 +72,32 @@ function getIconForCategory(category: string): string {
     'Utilities': 'Zap',
     'Marketing': 'Megaphone',
     'Equipment': 'Monitor',
+    // Swedish
+    'Programvara': 'Smartphone',
+    'IT & Programvara': 'Smartphone',
+    'Material': 'Tag',
+    'Kontorsmaterial': 'Tag',
+    'Resor': 'Plane',
+    'Intäkter': 'Briefcase',
+    'Representation': 'Coffee',
+    'Lokalhyra': 'Building2',
+    'Hyra': 'Building2',
+    'El & Värme': 'Zap',
+    'Marknadsföring': 'Megaphone',
+    'Utrustning': 'Monitor',
+    'Telefoni': 'Smartphone',
+    'Försäkring': 'Shield',
+    'Bank & Finans': 'Landmark',
+    'Löner': 'User',
+    'Skatter & Avgifter': 'Receipt',
+    'Övrigt': 'Tag',
   }
-  return iconMap[category] || 'CreditCard'
+  return iconMap[category] || 'Tag'
 }
 
 function getIconColorForCategory(category: string): string {
   const colorMap: Record<string, string> = {
+    // English
     'Software': 'text-blue-500',
     'Supplies': 'text-orange-500',
     'Travel': 'text-purple-500',
@@ -86,6 +107,25 @@ function getIconColorForCategory(category: string): string {
     'Utilities': 'text-yellow-500',
     'Marketing': 'text-pink-500',
     'Equipment': 'text-gray-500',
+    // Swedish
+    'Programvara': 'text-blue-500',
+    'IT & Programvara': 'text-blue-500',
+    'Material': 'text-orange-500',
+    'Kontorsmaterial': 'text-orange-500',
+    'Resor': 'text-purple-500',
+    'Intäkter': 'text-green-500',
+    'Representation': 'text-amber-600',
+    'Lokalhyra': 'text-indigo-500',
+    'Hyra': 'text-indigo-500',
+    'El & Värme': 'text-yellow-500',
+    'Marknadsföring': 'text-pink-500',
+    'Utrustning': 'text-gray-500',
+    'Telefoni': 'text-cyan-500',
+    'Försäkring': 'text-emerald-500',
+    'Bank & Finans': 'text-slate-500',
+    'Löner': 'text-violet-500',
+    'Skatter & Avgifter': 'text-red-500',
+    'Övrigt': 'text-gray-400',
   }
   return colorMap[category] || 'text-gray-500'
 }

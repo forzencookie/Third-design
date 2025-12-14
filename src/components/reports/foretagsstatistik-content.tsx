@@ -13,6 +13,7 @@ import {
     TooltipContent, 
     TooltipTrigger, 
 } from "@/components/ui/tooltip"
+import { Card } from "@/components/ui/card"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
 import { monthlyRevenue, expenseCategories } from "./constants"
 
@@ -69,7 +70,7 @@ export function ForetagsstatistikContent() {
                 </StatCardGrid>
 
                 <div className="grid grid-cols-2 gap-6">
-                    <div className="bg-card border-2 border-border/60 rounded-lg p-4 flex flex-col">
+                    <Card className="p-4 flex flex-col">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="font-medium">Omsättning per månad</h2>
                             <BarChart3 className="h-5 w-5 text-muted-foreground" />
@@ -136,9 +137,9 @@ export function ForetagsstatistikContent() {
                                 <span key={m.month} className="flex-1 text-xs text-muted-foreground text-center">{m.month}</span>
                             ))}
                         </div>
-                    </div>
+                    </Card>
 
-                    <div className="bg-card border-2 border-border/60 rounded-lg p-4">
+                    <Card className="p-4">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="font-medium">Kostnadsfördelning</h2>
                             <PieChart className="h-5 w-5 text-muted-foreground" />
@@ -159,10 +160,10 @@ export function ForetagsstatistikContent() {
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    </Card>
                 </div>
 
-                <div className="bg-card border-2 border-border/60 rounded-lg overflow-hidden">
+                <Card className="overflow-hidden">
                     <div className="px-4 py-3 border-b-2 border-border/60">
                         <h2 className="font-medium">Nyckeltal</h2>
                     </div>
@@ -184,7 +185,7 @@ export function ForetagsstatistikContent() {
                             <p className="text-xl font-semibold mt-1">245 tkr</p>
                         </div>
                     </div>
-                </div>
+                </Card>
             </div>
         </main>
     )

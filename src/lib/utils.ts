@@ -111,15 +111,54 @@ export function parseDateSafe(dateString: string, fallback: Date = new Date()): 
 /**
  * Format a number as currency
  * @example formatCurrency(-1234.56) => "-1 234,56 kr"
+ * @example formatCurrency(1234.56, "sv-SE", "SEK", 0) => "1 235 kr"
  */
-export function formatCurrency(amount: number, locale = "sv-SE", currency = "SEK"): string {
-  if (!Number.isFinite(amount)) return formatCurrency(0, locale, currency)
+export function formatCurrency(
+  amount: number, 
+  locale = "sv-SE", 
+  currency = "SEK",
+  minimumFractionDigits = 2
+): string {
+  if (!Number.isFinite(amount)) return formatCurrency(0, locale, currency, minimumFractionDigits)
   
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
-    minimumFractionDigits: 2,
+    minimumFractionDigits,
+    maximumFractionDigits: minimumFractionDigits,
   }).format(amount)
+}
+
+/**
+ * Format a date string for display
+ * @example formatDate("2024-01-15") => "2024-01-15" (sv-SE locale)
+ * @example formatDate("2024-01-15", { month: "long" }) => "15 januari 2024"
+ */
+export function formatDate(
+  dateStr: string,
+  options?: Intl.DateTimeFormatOptions,
+  locale = "sv-SE"
+): string {
+  if (!dateStr) return "—"
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return "—"
+  return date.toLocaleDateString(locale, options)
+}
+
+/**
+ * Format a date with full year, month name, and day
+ * @example formatDateLong("2024-01-15") => "15 januari 2024"
+ */
+export function formatDateLong(dateStr: string, locale = "sv-SE"): string {
+  return formatDate(dateStr, { year: "numeric", month: "long", day: "numeric" }, locale)
+}
+
+/**
+ * Format a date with short month
+ * @example formatDateShort("2024-01-15") => "15 jan"
+ */
+export function formatDateShort(dateStr: string, locale = "sv-SE"): string {
+  return formatDate(dateStr, { month: "short", day: "numeric" }, locale)
 }
 
 /**

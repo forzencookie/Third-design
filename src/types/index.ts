@@ -23,10 +23,23 @@ export type DbCategory = Tables<"categories">
 export type DbTaxReport = Tables<"tax_reports">
 export type DbAiLog = Tables<"ai_logs">
 
+// ============================================
+// Bank Types (Simulator → Bank → Dashboard flow)
+// ============================================
+
+export type {
+  NakedBankTransaction,
+  EnrichedTransaction,
+  TransactionCategory,
+  BankAccountType,
+  BankAccountInfo,
+} from "./bank"
+export { categoryMeta, bankAccountMeta } from "./bank"
+
 // Re-export status types from the existing status-types module
-export type { 
-  TransactionStatus, 
-  InvoiceStatus, 
+export type {
+  TransactionStatus,
+  InvoiceStatus,
   ReceiptStatus,
   StatusVariant,
   AppStatus,
@@ -44,7 +57,7 @@ export type {
 import type { FeatureKey } from "@/lib/company-types"
 
 // Re-export status constants for convenience
-export { 
+export {
   TRANSACTION_STATUSES,
   INVOICE_STATUSES,
   RECEIPT_STATUSES,
@@ -75,15 +88,18 @@ export interface Team {
 
 export interface NavItem {
   title: string
+  titleEnkel?: string  // Easy mode label
   url: string
   icon?: LucideIcon
   isActive?: boolean
+  muted?: boolean  // Lower opacity styling
   featureKey?: FeatureKey
   items?: NavSubItem[]
 }
 
 export interface NavSubItem {
   title: string
+  titleEnkel?: string  // Easy mode label
   url: string
   featureKey?: FeatureKey
 }
@@ -155,6 +171,12 @@ export interface InboxItem {
   starred: boolean
   aiSuggestion: string | null
   attachments?: string[]
+  // AI Processing fields
+  aiStatus?: 'pending' | 'processing' | 'processed' | 'error'
+  linkedEntityId?: string  // ID of created invoice/receipt
+  linkedEntityType?: 'supplier-invoice' | 'receipt' | null
+  // Document data (generated at creation time)
+  documentData?: import('./documents').DocumentData
 }
 
 export type InboxFilter = "all" | "unread" | "starred"
@@ -267,10 +289,12 @@ import type { InvoiceStatus, ReceiptStatus } from "@/lib/status-types"
 
 export interface Invoice {
   id: string
+  invoiceNumber?: string
   customer: string
+  email?: string
   issueDate: string
   dueDate: string
-  amount: string
+  amount: number
   status: InvoiceStatus
 }
 

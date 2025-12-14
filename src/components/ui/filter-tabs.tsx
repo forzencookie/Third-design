@@ -15,6 +15,14 @@ interface FilterTabsProps {
   value: string
   onChange: (value: string) => void
   className?: string
+  /** 
+   * Visual variant:
+   * - "default": Segmented control with container background
+   * - "buttons": Separate buttons without container (like Button group)
+   */
+  variant?: "default" | "buttons"
+  /** Size of the tabs */
+  size?: "sm" | "default"
 }
 
 export function FilterTabs({
@@ -22,24 +30,43 @@ export function FilterTabs({
   value,
   onChange,
   className,
+  variant = "default",
+  size = "default",
 }: FilterTabsProps) {
+  const isButtons = variant === "buttons"
+  const isSmall = size === "sm"
+  
   return (
-    <div className={cn("flex items-center gap-1 p-1 bg-muted/50 rounded-lg", className)}>
+    <div className={cn(
+      "flex items-center",
+      isButtons ? "gap-2" : "gap-1 p-1 bg-muted/50 rounded-lg",
+      className
+    )}>
       {options.map(option => (
         <button
           key={option.value}
           onClick={() => onChange(option.value)}
           className={cn(
-            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center",
-            value === option.value
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+            "font-medium rounded-md transition-colors flex items-center",
+            isSmall ? "px-3 py-1.5 text-sm h-8" : "px-3 py-1.5 text-sm",
+            isButtons
+              ? value === option.value
+                ? "bg-secondary text-secondary-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              : value === option.value
+                ? "bg-background text-foreground"
+                : "text-muted-foreground hover:text-foreground"
           )}
         >
-          {option.icon && <span className="mr-1">{option.icon}</span>}
+          {option.icon && <span className="mr-1.5">{option.icon}</span>}
           {option.label}
           {option.count !== undefined && (
-            <span className="ml-1.5 text-xs opacity-60">({option.count})</span>
+            <span className={cn(
+              "ml-1.5 text-xs",
+              isButtons ? "" : "opacity-60"
+            )}>
+              ({option.count})
+            </span>
           )}
         </button>
       ))}

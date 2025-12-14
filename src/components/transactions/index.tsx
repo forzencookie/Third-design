@@ -1,11 +1,8 @@
 // Transaction components - consolidated exports
 
-// Components
+// Components from components.tsx
 export {
-    MIN_CONFIDENCE_AUTO_APPROVE,
     ICON_MAP,
-    AISuggestionBadge,
-    AISuggestionsBanner,
     TransactionRow,
     TransactionsEmptyState,
     NewTransactionDialog,
@@ -14,10 +11,15 @@ export {
 
 export type { TransactionRowProps } from "./components"
 
+// AI Booking Chat (new chat-based interface)
+export { AIBookingChat } from "./AIBookingChat"
+export type { BookingData } from "./AIBookingChat"
+
+// Legacy Booking Dialog (step-by-step interface)
+export { BookingDialog } from "./BookingDialog"
+
 // Toolbar
 export { TransactionsToolbar } from "./TransactionsToolbar"
 
 // Table
 export { TransactionsTable } from "./table"
-
-export type { AISuggestionsMap } from "./table"

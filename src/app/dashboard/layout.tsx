@@ -1,15 +1,16 @@
 "use client"
 
-import { AppSidebar } from "@/components/app-sidebar"
-import { MobileBottomNav } from "@/components/mobile-bottom-nav"
+import { AppSidebar, MobileBottomNav } from "@/components/layout"
 import {
     SidebarInset,
     SidebarProvider,
 } from "@/components/ui/sidebar"
 import { ToastProvider } from "@/components/ui/toast"
-import { useOnboarding } from "@/components/onboarding-wizard"
-import { LazyOnboardingWizard } from "@/components/lazy-modules"
+import { useOnboarding } from "@/components/onboarding/onboarding-wizard"
+import { LazyOnboardingWizard } from "@/components/shared"
 import { CompanyProvider } from "@/providers/company-provider"
+import { TextModeProvider } from "@/providers/text-mode-provider"
+import { AIChatProvider } from "@/providers/ai-chat-provider"
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
     const { showOnboarding, completeOnboarding, skipOnboarding } = useOnboarding()
@@ -40,12 +41,16 @@ export default function DashboardLayout({
     children: React.ReactNode
 }) {
     return (
-        <CompanyProvider>
-            <ToastProvider>
-                <DashboardContent>
-                    {children}
-                </DashboardContent>
-            </ToastProvider>
-        </CompanyProvider>
+        <TextModeProvider>
+            <CompanyProvider>
+                <AIChatProvider>
+                    <ToastProvider>
+                        <DashboardContent>
+                            {children}
+                        </DashboardContent>
+                    </ToastProvider>
+                </AIChatProvider>
+            </CompanyProvider>
+        </TextModeProvider>
     )
 }

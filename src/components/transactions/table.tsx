@@ -10,16 +10,16 @@ import {
     Calendar,
     CheckCircle2,
     CreditCard,
-    Bot,
     TrendingUp,
     TrendingDown,
     Clock,
+    BookOpen,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { SearchBar } from "@/components/ui/search-bar"
 import { FilterButton } from "@/components/ui/filter-button"
-import { TRANSACTION_STATUSES, type TransactionStatus, type Transaction, type AISuggestion } from "@/types"
+import { TRANSACTION_STATUSES, type TransactionStatus, type Transaction, type TransactionWithAI } from "@/types"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -29,56 +29,56 @@ import {
     DropdownMenuTrigger,
     DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu"
-import { 
-    DataTable, 
-    DataTableHeader, 
+import {
+    DataTable,
+    DataTableHeader,
     DataTableHeaderCell,
     DataTableBody,
-    DataTableAddRow 
+    DataTableAddRow
 } from "@/components/ui/data-table"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
+import { SectionCard } from "@/components/ui/section-card"
+import { BulkActionToolbar, type BulkAction } from "@/components/shared/bulk-action-toolbar"
 import { useTableFilter, useTableSort, commonSortHandlers } from "@/hooks/use-table"
+import { useTextMode } from "@/providers/text-mode-provider"
 
 import {
-    MIN_CONFIDENCE_AUTO_APPROVE,
     TransactionRow,
     NewTransactionDialog,
-    TransactionDetailsDialog,
-    AISuggestionsBanner,
     TransactionsEmptyState,
 } from "./components"
+import { BookingDialog, type BookingData } from "./BookingDialog"
+import { Checkbox } from "@/components/ui/checkbox"
 
 // =============================================================================
 // TransactionsTable
 // =============================================================================
 
-export type AISuggestionsMap = Record<string, AISuggestion>
-
 interface TransactionsTableProps {
     title?: string
     subtitle?: string
-    transactions?: Transaction[]
-    aiSuggestions?: AISuggestionsMap
+    transactions?: TransactionWithAI[]
+    onTransactionBooked?: (transactionId: string, bookingData: BookingData) => void
 }
 
-export function TransactionsTable({ 
-    title = "Alla transaktioner",
+export function TransactionsTable({
+    title,
     subtitle,
     transactions = [],
-    aiSuggestions = {},
+    onTransactionBooked,
 }: TransactionsTableProps) {
-    const [approvedSuggestions, setApprovedSuggestions] = useState<Set<string>>(new Set())
-    const [rejectedSuggestions, setRejectedSuggestions] = useState<Set<string>>(new Set())
+    const { text } = useTextMode()
     const [newTransactionDialogOpen, setNewTransactionDialogOpen] = useState(false)
-    const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
-    const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+    const [selectedTransactions, setSelectedTransactions] = useState<TransactionWithAI[]>([])
+    const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-    const filter = useTableFilter<Transaction>({
+    const filter = useTableFilter<TransactionWithAI>({
         searchFields: ["name", "account", "amount"],
         initialStatusFilter: []
     })
 
-    const sort = useTableSort<Transaction>({
+    const sort = useTableSort<TransactionWithAI>({
         initialSortBy: "date",
         initialSortOrder: "desc",
         sortHandlers: {
@@ -88,23 +88,33 @@ export function TransactionsTable({
         }
     })
 
-    const handleApprove = useCallback((transactionId: string) => {
-        setApprovedSuggestions(prev => new Set([...prev, transactionId]))
-        setRejectedSuggestions(prev => {
+    const handleTransactionClick = useCallback((transaction: TransactionWithAI) => {
+        // Toggle selection when clicking on a row
+        setSelectedIds(prev => {
             const next = new Set(prev)
-            next.delete(transactionId)
+            if (next.has(transaction.id)) {
+                next.delete(transaction.id)
+            } else {
+                next.add(transaction.id)
+            }
             return next
         })
     }, [])
 
-    const handleReject = useCallback((transactionId: string) => {
-        setRejectedSuggestions(prev => new Set([...prev, transactionId]))
-        setApprovedSuggestions(prev => {
-            const next = new Set(prev)
-            next.delete(transactionId)
-            return next
-        })
-    }, [])
+    const handleBook = useCallback(async (bookingData: BookingData) => {
+        // Simulate API call delay
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+        // Call the parent callback with full booking data
+        if (onTransactionBooked) {
+            onTransactionBooked(bookingData.transactionId, bookingData)
+        }
+
+        // Close dialog and clear selection
+        setBookingDialogOpen(false)
+        setSelectedTransactions([])
+        setSelectedIds(new Set())
+    }, [onTransactionBooked])
 
     const handleSortChange = useCallback((newSortBy: "date" | "amount" | "name") => {
         sort.toggleSort(newSortBy)
@@ -115,9 +125,25 @@ export function TransactionsTable({
         return sort.sortItems(filtered)
     }, [transactions, filter, sort])
 
-    const pendingSuggestions = filteredTransactions.filter(
-        t => aiSuggestions[t.id] && !approvedSuggestions.has(t.id) && !rejectedSuggestions.has(t.id)
-    ).length
+    const toggleSelection = useCallback((id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) {
+                next.delete(id)
+            } else {
+                next.add(id)
+            }
+            return next
+        })
+    }, [])
+
+    const toggleAll = useCallback(() => {
+        if (selectedIds.size === filteredTransactions.length) {
+            setSelectedIds(new Set())
+        } else {
+            setSelectedIds(new Set(filteredTransactions.map(t => t.id)))
+        }
+    }, [selectedIds, filteredTransactions])
 
     // Calculate stats for the stat cards
     const stats = useMemo(() => {
@@ -126,63 +152,73 @@ export function TransactionsTable({
             const cleaned = amount.replace(/[^\d,.-]/g, '').replace(',', '.')
             return parseFloat(cleaned) || 0
         }
-        
+
         const income = transactions
             .filter(t => parseAmount(t.amount) > 0)
             .reduce((sum, t) => sum + parseAmount(t.amount), 0)
-        
+
         const expenses = transactions
             .filter(t => parseAmount(t.amount) < 0)
             .reduce((sum, t) => sum + Math.abs(parseAmount(t.amount)), 0)
-        
-        const pending = transactions.filter(t => t.status === 'Väntar på granskning').length
-        
+
+        // Count both "Att bokföra" and "Saknar underlag" as pending review
+        const pending = transactions.filter(t =>
+            t.status === TRANSACTION_STATUSES.TO_RECORD ||
+            t.status === TRANSACTION_STATUSES.MISSING_DOCUMENTATION
+        ).length
+
         return { income, expenses, pending, total: transactions.length }
     }, [transactions])
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('sv-SE', {
-            style: 'currency',
-            currency: 'SEK',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-        }).format(amount)
-    }
+    // Get transactions ready to book (have documentation)
+    const transactionsToBook = useMemo(() =>
+        transactions.filter(t => t.status === TRANSACTION_STATUSES.TO_RECORD),
+        [transactions]
+    )
 
-    const handleApproveAll = useCallback(() => {
-        filteredTransactions.forEach(t => {
-            const suggestion = aiSuggestions[t.id]
-            if (suggestion && suggestion.confidence >= MIN_CONFIDENCE_AUTO_APPROVE && !approvedSuggestions.has(t.id)) {
-                handleApprove(t.id)
-            }
-        })
-    }, [filteredTransactions, approvedSuggestions, handleApprove, aiSuggestions])
+    // Handle booking button click from bulk action
+    const handleBulkBooking = useCallback((ids: string[]) => {
+        const selected = transactions.filter(t => ids.includes(t.id))
+        if (selected.length > 0) {
+            setSelectedTransactions(selected)
+            setBookingDialogOpen(true)
+        }
+    }, [transactions])
+
+    // Bulk actions for the toolbar
+    const bulkActions: BulkAction[] = useMemo(() => [
+        {
+            id: "book",
+            label: "Bokför",
+            icon: BookOpen,
+            onClick: handleBulkBooking,
+        },
+    ], [handleBulkBooking])
 
     return (
         <div className="w-full space-y-6">
             <StatCardGrid columns={4}>
                 <StatCard
-                    label="Totalt transaktioner"
+                    label={text.stats.totalTransactions}
                     value={stats.total}
-                    subtitle="Denna period"
+                    subtitle={text.stats.thisPeriod}
                     icon={ArrowRightLeft}
                 />
                 <StatCard
-                    label="Inkomster"
+                    label={text.stats.income}
                     value={formatCurrency(stats.income)}
                     icon={TrendingUp}
                     changeType="positive"
                 />
                 <StatCard
-                    label="Utgifter"
+                    label={text.stats.expenses}
                     value={formatCurrency(stats.expenses)}
                     icon={TrendingDown}
                     changeType="negative"
                 />
                 <StatCard
-                    label="Väntar på granskning"
+                    label={text.stats.pendingReview}
                     value={stats.pending}
-                    subtitle={pendingSuggestions > 0 ? `${pendingSuggestions} AI-förslag` : undefined}
                     icon={Clock}
                 />
             </StatCardGrid>
@@ -190,40 +226,30 @@ export function TransactionsTable({
             {/* Section Separator */}
             <div className="border-b-2 border-border/60" />
 
-            <NewTransactionDialog 
-                open={newTransactionDialogOpen} 
-                onOpenChange={setNewTransactionDialogOpen} 
-            />
-            <TransactionDetailsDialog 
-                open={detailsDialogOpen} 
-                onOpenChange={setDetailsDialogOpen}
-                transaction={selectedTransaction}
-            />
-
-            <AISuggestionsBanner 
-                pendingSuggestions={pendingSuggestions}
-                onApproveAll={handleApproveAll}
+            <NewTransactionDialog
+                open={newTransactionDialogOpen}
+                onOpenChange={setNewTransactionDialogOpen}
             />
 
             <DataTable
-                title={title}
+                title={title || text.transactions.allTransactions}
                 headerActions={
                     <div className="flex items-center gap-2">
                         <SearchBar
-                            placeholder="Sök transaktioner..."
+                            placeholder={text.transactions.search}
                             value={filter.searchQuery}
                             onChange={filter.setSearchQuery}
                         />
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <FilterButton
-                                    label="Filter"
+                                    label={text.actions.filter}
                                     isActive={filter.statusFilter.length > 0}
                                     activeCount={filter.statusFilter.length}
                                 />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
-                                <DropdownMenuLabel>Filtrera på status</DropdownMenuLabel>
+                                <DropdownMenuLabel>{text.labels.filterByStatus}</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 {Object.values(TRANSACTION_STATUSES).map((status) => (
                                     <DropdownMenuCheckboxItem
@@ -239,70 +265,80 @@ export function TransactionsTable({
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem onClick={() => filter.setStatusFilter([])}>
                                             <X className="h-3.5 w-3.5 mr-2" />
-                                            Rensa filter
+                                            {text.actions.clearFilter}
                                         </DropdownMenuItem>
                                     </>
                                 )}
                                 <DropdownMenuSeparator />
-                                <DropdownMenuLabel>Sortera efter</DropdownMenuLabel>
+                                <DropdownMenuLabel>{text.labels.sortBy}</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleSortChange("date")}>
-                                    Datum {sort.sortBy === "date" && (sort.sortOrder === "asc" ? "↑" : "↓")}
+                                    {text.labels.date} {sort.sortBy === "date" && (sort.sortOrder === "asc" ? "↑" : "↓")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleSortChange("amount")}>
-                                    Belopp {sort.sortBy === "amount" && (sort.sortOrder === "asc" ? "↑" : "↓")}
+                                    {text.labels.amount} {sort.sortBy === "amount" && (sort.sortOrder === "asc" ? "↑" : "↓")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleSortChange("name")}>
-                                    Namn {sort.sortBy === "name" && (sort.sortOrder === "asc" ? "↑" : "↓")}
+                                    {text.labels.name} {sort.sortBy === "name" && (sort.sortOrder === "asc" ? "↑" : "↓")}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                         <Button size="sm" className="h-8 gap-1" onClick={() => setNewTransactionDialogOpen(true)}>
                             <Plus className="h-3.5 w-3.5" />
-                            Ny
+                            {text.actions.new}
                         </Button>
                     </div>
                 }
             >
                 <DataTableHeader>
-                    <DataTableHeaderCell icon={Building2} label="Leverantör" />
-                    <DataTableHeaderCell icon={Calendar} label="Datum" />
-                    <DataTableHeaderCell 
-                        icon={Bot} 
-                        label="AI-kategorisering" 
-                        className="text-violet-600 dark:text-violet-400/70"
-                    />
-                    <DataTableHeaderCell icon={Banknote} label="Belopp" />
-                    <DataTableHeaderCell icon={CheckCircle2} label="Status" />
-                    <DataTableHeaderCell icon={CreditCard} label="Konto" />
-                    <DataTableHeaderCell label="" />
+                    <DataTableHeaderCell className="w-10">
+                        <Checkbox
+                            checked={selectedIds.size === filteredTransactions.length && filteredTransactions.length > 0}
+                            onCheckedChange={toggleAll}
+                        />
+                    </DataTableHeaderCell>
+                    <DataTableHeaderCell icon={Building2} label={text.labels.supplier} />
+                    <DataTableHeaderCell icon={Calendar} label={text.labels.date} />
+                    <DataTableHeaderCell icon={Banknote} label={text.labels.amount} />
+                    <DataTableHeaderCell icon={CheckCircle2} label={text.labels.status} />
+                    <DataTableHeaderCell icon={CreditCard} label={text.labels.account} />
                 </DataTableHeader>
                 <DataTableBody>
-                    {filteredTransactions.map((transaction) => {
-                        const suggestion = aiSuggestions[transaction.id]
-                        const isRejected = rejectedSuggestions.has(transaction.id)
-                        return (
-                            <TransactionRow 
-                                key={transaction.id} 
-                                transaction={transaction}
-                                suggestion={!isRejected ? suggestion : undefined}
-                                onApproveSuggestion={() => handleApprove(transaction.id)}
-                                onRejectSuggestion={() => handleReject(transaction.id)}
-                                isApproved={approvedSuggestions.has(transaction.id)}
-                                isRejected={isRejected}
-                            />
-                        )
-                    })}
+                    {filteredTransactions.map((transaction) => (
+                        <TransactionRow
+                            key={transaction.id}
+                            transaction={transaction}
+                            onClick={() => handleTransactionClick(transaction)}
+                            selected={selectedIds.has(transaction.id)}
+                            onToggleSelection={() => toggleSelection(transaction.id)}
+                        />
+                    ))}
                     {filteredTransactions.length === 0 && (
-                        <TransactionsEmptyState 
+                        <TransactionsEmptyState
                             hasFilters={filter.hasActiveFilters}
                             onAddTransaction={() => setNewTransactionDialogOpen(true)}
                         />
                     )}
                 </DataTableBody>
             </DataTable>
-            <DataTableAddRow 
-                label="Ny transaktion" 
-                onClick={() => setNewTransactionDialogOpen(true)} 
+            <DataTableAddRow
+                label={text.transactions.newTransaction}
+                onClick={() => setNewTransactionDialogOpen(true)}
+            />
+
+            {/* Bulk Action Toolbar - appears when items are selected */}
+            <BulkActionToolbar
+                selectedCount={selectedIds.size}
+                selectedIds={Array.from(selectedIds)}
+                onClearSelection={() => setSelectedIds(new Set())}
+                actions={bulkActions}
+            />
+
+            {/* Booking Dialog */}
+            <BookingDialog
+                open={bookingDialogOpen}
+                onOpenChange={setBookingDialogOpen}
+                transaction={selectedTransactions[0] || null}
+                onBook={handleBook}
             />
         </div>
     )

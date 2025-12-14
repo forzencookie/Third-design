@@ -3,6 +3,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import type { LucideIcon } from "lucide-react"
+import { AIActionButton } from "./ai-action-button"
 
 export interface SectionCardProps {
     /** Optional icon to display */
@@ -11,8 +12,12 @@ export interface SectionCardProps {
     title: string
     /** Description text */
     description?: string
-    /** Additional content on the right side */
+    /** Additional content on the right side - for custom action elements */
     action?: React.ReactNode
+    /** Click handler for AI variant - automatically renders AIActionButton with "Generera" text */
+    onAction?: () => void
+    /** Custom text for the action button (only used with onAction) */
+    actionLabel?: string
     /** Children content */
     children?: React.ReactNode
     /** Additional className */
@@ -26,10 +31,16 @@ export function SectionCard({
     title,
     description,
     action,
+    onAction,
+    actionLabel = "Generera",
     children,
     className,
     variant = "default",
 }: SectionCardProps) {
+    // If onAction is provided and variant is "ai", render AIActionButton automatically
+    const resolvedAction = action ?? (onAction && variant === "ai" ? (
+        <AIActionButton onClick={onAction}>{actionLabel}</AIActionButton>
+    ) : null)
     return (
         <div
             className={cn(
@@ -58,7 +69,7 @@ export function SectionCard({
                                 <p className="text-sm text-muted-foreground mt-1">{description}</p>
                             )}
                         </div>
-                        {action && <div className="shrink-0">{action}</div>}
+                        {resolvedAction && <div className="shrink-0">{resolvedAction}</div>}
                     </div>
                     {children && <div className="mt-3">{children}</div>}
                 </div>

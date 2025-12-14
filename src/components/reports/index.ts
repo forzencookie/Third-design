@@ -24,5 +24,6 @@ export type {
 export { MomsdeklarationContent } from "./momsdeklaration-content"
 export { InkomstdeklarationContent } from "./inkomstdeklaration-content"
 export { ArsredovisningContent } from "./arsredovisning-content"
+export { ArsbokslutContent } from "./arsbokslut-content"
 export { ForetagsstatistikContent } from "./foretagsstatistik-content"
 export { ResultatrakningContent, BalansrakningContent } from "./financial-statements"

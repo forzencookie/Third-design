@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
-import { IntegrationLogos } from "@/components/integration-logos"
+import { IntegrationLogos } from "../settings/integration-logos"
 
 import { Section } from "./section"
 

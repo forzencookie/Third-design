@@ -119,6 +119,10 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Prevent body scroll when dialog is open */
+  body:has([data-slot="dialog-overlay"]) {
+    overflow: hidden;
+  }
 }
 
 /* Custom animations */

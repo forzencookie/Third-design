@@ -10,11 +10,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { 
   Mail, 
   Loader2, 
-  AlertCircle,
   Building2,
   CheckCircle,
   ArrowLeft,
 } from 'lucide-react'
+import { AlertMessage } from '@/components/ui/alert-message'
 
 export default function ForgotPasswordPage() {
   const { resetPassword } = useAuth()
@@ -95,12 +95,7 @@ export default function ForgotPasswordPage() {
 
         <CardContent className="space-y-4">
           {/* Error message */}
-          {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          {error && <AlertMessage variant="error">{error}</AlertMessage>}
 
           <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
             <div className="space-y-2">

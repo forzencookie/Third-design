@@ -21,14 +21,15 @@ export function FilterButton({
   label,
   className,
   children,
-}: FilterButtonProps) {
+  size = "sm",
+}: FilterButtonProps & { size?: "default" | "sm" | "lg" | "icon" }) {
   return (
     <Button
       variant="outline"
-      size="sm"
+      size={size}
       onClick={onClick}
       className={cn(
-        "h-8 gap-2 border-2 border-border/60",
+        "gap-2",
         isActive && "border-primary text-primary",
         className
       )}
@@ -60,7 +61,7 @@ export function FilterButtonIcon({
       size="sm"
       onClick={onClick}
       className={cn(
-        "h-8 w-8 p-0 border-2 border-border/60",
+        "h-8 w-8 p-0",
         isActive && "border-primary text-primary",
         className
       )}

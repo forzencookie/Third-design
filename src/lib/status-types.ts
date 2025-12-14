@@ -54,6 +54,7 @@ export const INVOICE_STATUS_VARIANT: Record<InvoiceStatus, StatusVariant> = {
     "Skickad": "info",
     "Utkast": "neutral",
     "Förfallen": "error",
+    "Makulerad": "neutral",
 }
 
 // =============================================================================

@@ -530,10 +530,12 @@ export const accountClassLabels: Record<AccountClass, string> = {
   8: 'Finansiella poster',
 };
 
-export const accountTypeLabels: Record<AccountType, string> = {
-  asset: 'Tillgång',
-  liability: 'Skuld',
-  equity: 'Eget kapital',
-  revenue: 'Intäkt',
-  expense: 'Kostnad',
+import { GENERAL_STATUS_LABELS, type GeneralStatus } from "@/lib/localization"
+
+export const accountTypeLabels: Record<AccountType, GeneralStatus> = {
+  asset: GENERAL_STATUS_LABELS.ASSET,
+  liability: GENERAL_STATUS_LABELS.LIABILITY,
+  equity: GENERAL_STATUS_LABELS.EQUITY,
+  revenue: GENERAL_STATUS_LABELS.REVENUE,
+  expense: GENERAL_STATUS_LABELS.EXPENSE,
 };

@@ -32,11 +32,10 @@ import {
     LazyAGIContent, 
     LazyUtdelningContent,
     preloadPayrollTab
-} from "@/components/lazy-modules"
+} from "@/components/shared"
 
 // External components for EF/HB/KB tabs
-import { EgenavgifterCalculator } from "@/components/egenavgifter"
-import { DelagaruttagManager } from "@/components/delagaruttag"
+import { EgenavgifterCalculator, DelagaruttagManager } from "@/components/ownership"
 
 function PayrollPageContent() {
     const searchParams = useSearchParams()

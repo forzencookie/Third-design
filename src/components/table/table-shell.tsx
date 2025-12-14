@@ -1,6 +1,27 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
+import { 
+  Coffee, Tag, Package, Monitor, Plane, Building2, Fuel, Smartphone, Phone, 
+  Zap, Shield, Receipt, Server, type LucideIcon 
+} from "lucide-react"
+
+// Icon map for CategoryBadge
+const CATEGORY_ICON_MAP: Record<string, LucideIcon> = {
+  Coffee,
+  Tag,
+  Package,
+  Monitor,
+  Plane,
+  Building2,
+  Fuel,
+  Smartphone,
+  Phone,
+  Zap,
+  Shield,
+  Receipt,
+  Server,
+}
 
 export type HeaderConfig = {
   label: string
@@ -44,9 +65,20 @@ export function TableShell({ header, children, bodyClassName }: { header: React.
   )
 }
 
-export function CategoryBadge({ children }: { children: React.ReactNode }) {
+export function CategoryBadge({ 
+  children, 
+  iconName, 
+  iconColor 
+}: { 
+  children: React.ReactNode
+  iconName?: string
+  iconColor?: string
+}) {
+  const Icon = iconName ? CATEGORY_ICON_MAP[iconName] : null
+  
   return (
-    <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0 text-xs font-medium h-5">
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-1.5 py-0 text-xs font-medium h-5">
+      {Icon && <Icon className={cn("h-3 w-3", iconColor || "text-muted-foreground")} />}
       {children}
     </span>
   )

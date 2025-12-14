@@ -33,6 +33,8 @@ import {
     TooltipProvider 
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
+import { FilterTabs } from "@/components/ui/filter-tabs"
+import { useToast } from "@/components/ui/toast"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -41,7 +43,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { LazyJournalCalendar } from "@/components/lazy-modules"
+import { LazyJournalCalendar } from "@/components/shared"
 
 // ============================================
 // Tasks Data & Config
@@ -159,6 +161,7 @@ function getTabInfo(tabId: string) {
 // ============================================
 
 function TasksContent() {
+    const toast = useToast()
     const [tasks, setTasks] = useState(initialTasks)
     const [filter, setFilter] = useState<"all" | "pending" | "completed">("pending")
 
@@ -182,6 +185,21 @@ function TasksContent() {
         setTasks(prev => prev.filter(t => t.id !== id))
     }
 
+    const handleAddTask = () => {
+        const newTask = {
+            id: Date.now(),
+            title: "Ny manuell uppgift",
+            description: "Beskriv uppgiften här",
+            category: "bookkeeping" as const,
+            priority: "medium" as const,
+            dueDate: "Idag",
+            isAiGenerated: false,
+            completed: false,
+        }
+        setTasks(prev => [newTask, ...prev])
+        toast.success("Uppgift skapad", "En ny uppgift har lagts till i din lista")
+    }
+
     return (
         <div className="flex flex-col gap-6">
             {/* Header */}
@@ -191,37 +209,25 @@ function TasksContent() {
                         AI-genererade och manuella uppgifter för din bokföring
                     </p>
                 </div>
-                <Button>
+                <Button onClick={handleAddTask}>
                     <Plus className="h-4 w-4 mr-2" />
                     Ny uppgift
                 </Button>
             </div>
 
             {/* Filter tabs */}
-            <div className="flex gap-2 border-b-2 border-border/60 pb-2">
-                <Button 
-                    variant={filter === "all" ? "secondary" : "ghost"} 
+            <div className="border-b-2 border-border/60 pb-2">
+                <FilterTabs
+                    variant="buttons"
                     size="sm"
-                    onClick={() => setFilter("all")}
-                >
-                    Alla ({tasks.length})
-                </Button>
-                <Button 
-                    variant={filter === "pending" ? "secondary" : "ghost"} 
-                    size="sm"
-                    onClick={() => setFilter("pending")}
-                >
-                    <Clock className="h-3.5 w-3.5 mr-1" />
-                    Att göra ({pendingCount})
-                </Button>
-                <Button 
-                    variant={filter === "completed" ? "secondary" : "ghost"} 
-                    size="sm"
-                    onClick={() => setFilter("completed")}
-                >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Klara ({completedCount})
-                </Button>
+                    value={filter}
+                    onChange={(v) => setFilter(v as "all" | "pending" | "completed")}
+                    options={[
+                        { value: "all", label: "Alla", count: tasks.length },
+                        { value: "pending", label: "Att göra", count: pendingCount, icon: <Clock className="h-3.5 w-3.5" /> },
+                        { value: "completed", label: "Klara", count: completedCount, icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+                    ]}
+                />
             </div>
 
             {/* Task list */}
@@ -359,7 +365,7 @@ function DagbokPageContent() {
                         <Breadcrumb>
                             <BreadcrumbList>
                                 <BreadcrumbItem>
-                                    <BreadcrumbPage>Dagbok</BreadcrumbPage>
+                                    <BreadcrumbPage>Händelser</BreadcrumbPage>
                                 </BreadcrumbItem>
                             </BreadcrumbList>
                         </Breadcrumb>

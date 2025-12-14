@@ -31,6 +31,15 @@ export * from "./use-inbox"
 export * from "./use-transactions"
 export * from "./use-account-balances"
 
+// Bank transactions hook (connects to bank simulator)
+export { 
+  useBankTransactions, 
+  suggestCategory, 
+  getCategoryAccountNumber, 
+  getBankAccountNumber,
+} from "./use-bank-transactions"
+export type { UseBankTransactionsReturn } from "./use-bank-transactions"
+
 // Last updated timestamp hook
 export { useLastUpdated, useLastUpdatedTime, formatLastUpdated } from "./use-last-updated"
 

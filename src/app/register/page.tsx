@@ -15,12 +15,12 @@ import {
   Eye, 
   EyeOff, 
   Loader2, 
-  AlertCircle,
   Building2,
   CheckCircle,
   ArrowRight,
   User,
 } from 'lucide-react'
+import { AlertMessage } from '@/components/ui/alert-message'
 
 // Google icon component
 function GoogleIcon({ className }: { className?: string }) {
@@ -255,12 +255,7 @@ export default function RegisterPage() {
 
           <CardContent className="space-y-4">
             {/* Error message */}
-            {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
+            {error && <AlertMessage variant="error">{error}</AlertMessage>}
 
             {/* OAuth buttons */}
             <div className="grid grid-cols-2 gap-3">
