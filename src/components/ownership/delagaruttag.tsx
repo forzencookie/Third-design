@@ -49,16 +49,18 @@ import { cn } from "@/lib/utils"
 import { mockPartners, type Partner } from "@/data/ownership"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
 import { LegalInfoCard } from "@/components/ui/legal-info-card"
-import { 
-  DataTable, 
-  DataTableHeader, 
-  DataTableHeaderCell, 
-  DataTableBody, 
-  DataTableRow, 
-  DataTableCell 
+import {
+  DataTable,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableBody,
+  DataTableRow,
+  DataTableCell
 } from "@/components/ui/data-table"
 import { AppStatusBadge, type AppStatus } from "@/components/ui/status-badge"
 import { GENERAL_STATUS_LABELS } from "@/lib/localization"
+import { useVerifications } from "@/hooks/use-verifications"
+import { useToast } from "@/components/ui/toast"
 
 interface Withdrawal {
   id: string
@@ -71,59 +73,13 @@ interface Withdrawal {
   approved: boolean
 }
 
-// Mock withdrawals data
-const mockWithdrawals: Withdrawal[] = [
-  {
-    id: 'w1',
-    partnerId: mockPartners[0].id,
-    partnerName: mockPartners[0].name,
-    date: '2024-05-15',
-    amount: 25000,
-    type: 'uttag',
-    description: 'Privat uttag',
-    approved: true,
-  },
-  {
-    id: 'w2',
-    partnerId: mockPartners[0].id,
-    partnerName: mockPartners[0].name,
-    date: '2024-05-01',
-    amount: 30000,
-    type: 'lön',
-    description: 'Lön maj',
-    approved: true,
-  },
-  {
-    id: 'w3',
-    partnerId: mockPartners[1].id,
-    partnerName: mockPartners[1].name,
-    date: '2024-05-10',
-    amount: 15000,
-    type: 'uttag',
-    description: 'Privat uttag',
-    approved: true,
-  },
-  {
-    id: 'w4',
-    partnerId: mockPartners[1].id,
-    partnerName: mockPartners[1].name,
-    date: '2024-04-28',
-    amount: 50000,
-    type: 'insättning',
-    description: 'Kapitaltillskott',
-    approved: true,
-  },
-  {
-    id: 'w5',
-    partnerId: mockPartners[0].id,
-    partnerName: mockPartners[0].name,
-    date: '2024-04-15',
-    amount: 20000,
-    type: 'uttag',
-    description: 'Förskott',
-    approved: false,
-  },
-]
+// Account mapping for partners (BAS Standard)
+// Partner 1: 2010-2019
+// Partner 2: 2020-2029
+const PARTNER_ACCOUNTS: Record<string, { capital: string, withdrawal: string, deposit: string }> = {
+  'p-1': { capital: '2010', withdrawal: '2013', deposit: '2018' },
+  'p-2': { capital: '2020', withdrawal: '2023', deposit: '2028' },
+}
 
 const typeConfig: Record<Withdrawal['type'], { label: AppStatus; color: string; icon: typeof ArrowUpRight }> = {
   uttag: { label: GENERAL_STATUS_LABELS.UTTAG, color: 'text-red-600 bg-red-50 dark:text-red-500/70 dark:bg-red-950/50', icon: ArrowUpRight },
@@ -132,11 +88,67 @@ const typeConfig: Record<Withdrawal['type'], { label: AppStatus; color: string; 
 }
 
 export function DelagaruttagManager() {
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>(mockWithdrawals)
+  const { verifications, addVerification } = useVerifications()
+  const toast = useToast()
+
   const [searchQuery, setSearchQuery] = useState("")
   const [partnerFilter, setPartnerFilter] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
+
+  // Form state
+  const [newType, setNewType] = useState<'uttag' | 'insättning' | 'lön'>('uttag')
+  const [newPartnerId, setNewPartnerId] = useState<string>("")
+  const [newAmount, setNewAmount] = useState("")
+  const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0])
+  const [newDesc, setNewDesc] = useState("")
+
+  // Derive withdrawals from Ledger
+  const withdrawals = useMemo<Withdrawal[]>(() => {
+    const list: Withdrawal[] = []
+
+    verifications.forEach(v => {
+      // Check rows for partner accounts
+      const withdrawalRow = v.rows.find(r => ['2013', '2023'].includes(r.account) && r.debit > 0)
+      const depositRow = v.rows.find(r => ['2018', '2028'].includes(r.account) && r.credit > 0)
+
+      if (withdrawalRow) {
+        const pid = withdrawalRow.account === '2013' ? 'p-1' : 'p-2'
+        const p = mockPartners.find(mp => mp.id === pid)
+        if (p) {
+          list.push({
+            id: v.id,
+            partnerId: pid,
+            partnerName: p.name,
+            date: v.date,
+            amount: withdrawalRow.debit,
+            type: 'uttag', // Treat all debits to 2013/2023 as withdrawals for now
+            description: v.description,
+            approved: true // Ledger entries are final
+          })
+        }
+      }
+
+      if (depositRow) {
+        const pid = depositRow.account === '2018' ? 'p-1' : 'p-2'
+        const p = mockPartners.find(mp => mp.id === pid)
+        if (p) {
+          list.push({
+            id: v.id,
+            partnerId: pid,
+            partnerName: p.name,
+            date: v.date,
+            amount: depositRow.credit,
+            type: 'insättning',
+            description: v.description,
+            approved: true
+          })
+        }
+      }
+    })
+
+    return list
+  }, [verifications])
 
   // Calculate stats per partner
   const partnerStats = useMemo(() => {
@@ -151,7 +163,7 @@ export function DelagaruttagManager() {
       const totalLon = partnerWithdrawals
         .filter(w => w.type === 'lön')
         .reduce((sum, w) => sum + w.amount, 0)
-      
+
       const nettoUttag = totalUttag + totalLon - totalInsattning
       const kapitalkonto = partner.capitalContribution - nettoUttag
 
@@ -204,6 +216,53 @@ export function DelagaruttagManager() {
 
     return { totalUttag, totalInsattning, totalLon, pendingCount }
   }, [withdrawals])
+
+  const handleSave = async () => {
+    if (!newPartnerId || !newAmount || !newDesc) {
+      toast.error("Saknas uppgifter", "Vänligen fyll i alla fält")
+      return
+    }
+
+    const amount = parseFloat(newAmount)
+    const accounts = PARTNER_ACCOUNTS[newPartnerId]
+
+    if (!accounts) return
+
+    let debitAcc = ""
+    let creditAcc = ""
+
+    if (newType === 'uttag' || newType === 'lön') {
+      // Withdrawal: Debit Partner Account (2013), Credit Bank (1930)
+      debitAcc = accounts.withdrawal
+      creditAcc = "1930"
+
+      await addVerification({
+        date: newDate,
+        description: newDesc,
+        sourceType: 'withdrawal',
+        rows: [
+          { account: debitAcc, description: `${newType === 'lön' ? 'Lön' : 'Uttag'} ${mockPartners.find(p => p.id === newPartnerId)?.name}`, debit: amount, credit: 0 },
+          { account: creditAcc, description: "Utbetalning", debit: 0, credit: amount }
+        ]
+      })
+    } else {
+      // Deposit: Debit Bank (1930), Credit Partner Account (2018)
+      await addVerification({
+        date: newDate,
+        description: newDesc,
+        sourceType: 'deposit',
+        rows: [
+          { account: "1930", description: "Insättning", debit: amount, credit: 0 },
+          { account: accounts.deposit, description: `Egen insättning ${mockPartners.find(p => p.id === newPartnerId)?.name}`, debit: 0, credit: amount }
+        ]
+      })
+    }
+
+    toast.success("Transaktion sparad", "Transaktionen har bokförts.")
+    setShowAddDialog(false)
+    setNewAmount("")
+    setNewDesc("")
+  }
 
   return (
     <div className="space-y-6">
@@ -261,7 +320,7 @@ export function DelagaruttagManager() {
                         {partner.ownershipPercentage}% ägarandel
                       </p>
                     </div>
-                    <AppStatusBadge 
+                    <AppStatusBadge
                       status={partner.type === 'komplementär' ? 'Komplementär' : 'Kommanditdelägare'}
                     />
                   </div>
@@ -333,13 +392,13 @@ export function DelagaruttagManager() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" className="w-full justify-between">
-                          Välj delägare
+                          {newPartnerId ? mockPartners.find(p => p.id === newPartnerId)?.name : "Välj delägare"}
                           <Filter className="h-4 w-4 ml-2" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-[200px]">
                         {mockPartners.map(p => (
-                          <DropdownMenuItem key={p.id}>{p.name}</DropdownMenuItem>
+                          <DropdownMenuItem key={p.id} onClick={() => setNewPartnerId(p.id)}>{p.name}</DropdownMenuItem>
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -349,35 +408,48 @@ export function DelagaruttagManager() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" className="w-full justify-between">
-                          Välj typ
+                          {typeConfig[newType].label}
                           <Filter className="h-4 w-4 ml-2" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-[200px]">
-                        <DropdownMenuItem>Uttag</DropdownMenuItem>
-                        <DropdownMenuItem>Insättning</DropdownMenuItem>
-                        <DropdownMenuItem>Lön</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setNewType('uttag')}>Uttag</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setNewType('insättning')}>Insättning</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setNewType('lön')}>Lön</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                   <div className="space-y-2">
                     <Label>Belopp (kr)</Label>
-                    <Input type="number" placeholder="0" />
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={newAmount}
+                      onChange={(e) => setNewAmount(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Datum</Label>
-                    <Input type="date" />
+                    <Input
+                      type="date"
+                      value={newDate}
+                      onChange={(e) => setNewDate(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Beskrivning</Label>
-                    <Input placeholder="T.ex. Privat uttag, Kapitaltillskott..." />
+                    <Input
+                      placeholder="T.ex. Privat uttag, Kapitaltillskott..."
+                      value={newDesc}
+                      onChange={(e) => setNewDesc(e.target.value)}
+                    />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                     Avbryt
                   </Button>
-                  <Button onClick={() => setShowAddDialog(false)}>
+                  <Button onClick={handleSave}>
                     Spara
                   </Button>
                 </DialogFooter>

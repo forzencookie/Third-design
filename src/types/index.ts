@@ -195,6 +195,8 @@ export interface Transaction {
   timestamp: Date
   amount: string
   amountValue: number // Numeric value for calculations
+  vatAmount?: number  // VAT amount in SEK (negative for expenses, positive for income)
+  vatRate?: number    // VAT rate (25, 12, 6, or 0)
   status: TransactionStatus
   category: string
   iconName: string
@@ -294,7 +296,9 @@ export interface Invoice {
   email?: string
   issueDate: string
   dueDate: string
-  amount: number
+  amount: number       // Net amount (ex. VAT)
+  vatAmount?: number   // VAT amount
+  vatRate?: number     // VAT rate (25, 12, 6, 0)
   status: InvoiceStatus
 }
 

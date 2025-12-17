@@ -12,6 +12,7 @@ import {
     FileBarChart,
     Wallet,
     X,
+    Eye,
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
@@ -39,33 +40,43 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SectionCard } from "@/components/ui/section-card"
 import { InkomstWizardDialog } from "./ai-wizard-dialog"
-import { ink2Fields } from "./constants"
+import { Ink2PreviewDialog } from "./ink2-preview-dialog"
+import { useVerifications } from "@/hooks/use-verifications"
+import { Ink2Processor } from "@/lib/ink2-processor"
 import { INVOICE_STATUS_LABELS } from "@/lib/localization"
 
 export function InkomstdeklarationContent() {
-    const { toast } = useToast()
+    const { addToast: toast } = useToast()
+    const { verifications } = useVerifications()
     const [showAIDialog, setShowAIDialog] = useState(false)
+    const [showPreview, setShowPreview] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [fieldFilter, setFieldFilter] = useState<string[]>([])
 
-    // Calculate stats from ink2Fields data
+    // Calculate real fields from ledger
+    const fields = useMemo(() => {
+        // Default to 2024 for this prototype
+        return Ink2Processor.calculateInk2(verifications, 2024)
+    }, [verifications])
+
+    // Calculate stats from calculated fields
     const stats = useMemo(() => {
-        const nettoOmsattning = ink2Fields.find(f => f.field === "1.1")?.value || 0
-        const arsResultat = ink2Fields.find(f => f.label.includes("resultat"))?.value || 0
+        const nettoOmsattning = fields.find(f => f.field === "1.1")?.value || 0
+        const arsResultat = fields.find(f => f.field === "4.1")?.value || 0
         return {
             year: "2024",
             result: arsResultat,
             status: INVOICE_STATUS_LABELS.DRAFT,
         }
-    }, [])
+    }, [fields])
 
     // Filter fields based on search and category
     const filteredFields = useMemo(() => {
-        let fields = ink2Fields
+        let result = fields
 
         if (fieldFilter.length > 0) {
-            fields = fields.filter(field => {
+            result = result.filter(field => {
                 const isIncome = field.field.startsWith("1.") || field.field === "3.1"
                 const isExpense = field.field.startsWith("2.") || field.field === "3.3"
                 const isResult = field.field.startsWith("4.") || field.label.toLowerCase().includes("resultat")
@@ -77,8 +88,8 @@ export function InkomstdeklarationContent() {
             })
         }
 
-        return fields
-    }, [fieldFilter])
+        return result
+    }, [fieldFilter, fields])
 
     const toggleFilter = (value: string) => {
         setFieldFilter(prev => {
@@ -128,7 +139,7 @@ export function InkomstdeklarationContent() {
                     />
                     <StatCard
                         label="Bokfört resultat"
-                        value="379 000 kr"
+                        value={`${stats.result.toLocaleString('sv-SE')} kr`}
                         subtitle="Före skattemässiga justeringar"
                         icon={TrendingUp}
                     />
@@ -154,6 +165,11 @@ export function InkomstdeklarationContent() {
                 <InkomstWizardDialog
                     open={showAIDialog}
                     onOpenChange={setShowAIDialog}
+                />
+
+                <Ink2PreviewDialog
+                    open={showPreview}
+                    onOpenChange={setShowPreview}
                 />
 
                 <DataTable
@@ -201,6 +217,19 @@ export function InkomstdeklarationContent() {
                                     )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
+                            <Button size="sm" onClick={handleSend}>
+                                <Send className="h-4 w-4 mr-1.5" />
+                                Skicka till Skatteverket
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowPreview(true)}
+                                className="mr-2"
+                            >
+                                <Eye className="h-4 w-4 mr-1.5" />
+                                Förhandsgranska
+                            </Button>
                             <Button size="sm" onClick={handleSend}>
                                 <Send className="h-4 w-4 mr-1.5" />
                                 Skicka till Skatteverket

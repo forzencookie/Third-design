@@ -36,6 +36,12 @@ import {
 import { IconButton, IconButtonGroup } from "@/components/ui/icon-button"
 import { AppStatusBadge } from "@/components/ui/status-badge"
 import { termExplanations, dividendHistory, k10Declarations } from "./constants"
+import { useCorporate } from "@/hooks/use-corporate"
+import { useVerifications } from "@/hooks/use-verifications"
+import { useToast } from "@/components/ui/toast"
+import { useTextMode } from "@/providers/text-mode-provider"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 // Dividend table sub-component
 interface DividendTableProps {
@@ -100,14 +106,125 @@ function DividendTable({ data, className }: DividendTableProps) {
 }
 
 export function UtdelningContent() {
+    const { meetings, addMeeting, addDecision, updateDecision } = useCorporate()
+    const { addVerification } = useVerifications()
+    const { success } = useToast()
+    const { text } = useTextMode()
+
     const [showAIDialog, setShowAIDialog] = useState(false)
+    const [showRegisterDialog, setShowRegisterDialog] = useState(false)
+    const [registerAmount, setRegisterAmount] = useState("")
+    const [registerYear, setRegisterYear] = useState(new Date().getFullYear().toString())
+
     const [step, setStep] = useState(1)
     const [chatInput, setChatInput] = useState("")
     const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "ai", text: string }>>([])
 
     const [useAIRecommendation, setUseAIRecommendation] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
-    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+    // Derive dividend history from real meetings
+    const realDividendHistory = useMemo(() => {
+        const history: typeof dividendHistory = []
+
+        meetings.forEach(meeting => {
+            meeting.decisions
+                .filter(d => d.type === 'dividend' && d.amount)
+                .forEach(d => {
+                    const amount = d.amount || 0
+                    const tax = amount * 0.2 // Simplified 20% tax rule for demo
+                    history.push({
+                        year: meeting.year.toString(),
+                        amount: amount,
+                        taxRate: '20%',
+                        tax: tax,
+                        netAmount: amount - tax,
+                        status: d.booked ? 'paid' : 'planned'
+                    })
+                })
+        })
+
+        // Sort by year descending
+        return history.sort((a, b) => Number(b.year) - Number(a.year))
+    }, [meetings])
+
+    // Use mock history if no real data yet (for smooth transition)
+    const displayHistory = realDividendHistory.length > 0 ? realDividendHistory : dividendHistory
+
+    const handleRegisterDividend = async () => {
+        const amount = parseInt(registerAmount.replace(/\s/g, ''))
+        const year = parseInt(registerYear)
+
+        if (!amount || !year) return
+
+        // 1. Create General Meeting (The "Paper Trail")
+        const meetingDate = new Date().toISOString().split('T')[0]
+        // Use a temporary ID for the decision linking, actual ID is generated in store but we can't get it back easily in this mock setup.
+        // So we just fire and forget the sequence.
+        // Ideally `addMeeting` returns the ID. For now we assume the latest logic or just add separately.
+
+        // Strategy: We can't easily link the decision to the meeting immediately if `addMeeting` is void.
+        // Workaround: We'll modify `addMeeting` to return ID in a real app.
+        // Here, we'll manually construct the meeting with decision included!
+
+        const newMeetingId = `gm-${Math.random().toString(36).substr(2, 9)}`
+        const newDecisionId = `gmd-${Math.random().toString(36).substr(2, 9)}`
+
+        // We can't pass ID to addMeeting based on current context interface (Omit<..., "id">).
+        // So we will add meeting, then find it? No, unsafe.
+        // Robust way: Add meeting WITH decision in one go if possible?
+        // Context `addMeeting` takes Omit<GeneralMeeting, "id">.
+        // GeneralMeeting has `decisions`.
+
+        addMeeting({
+            year: year,
+            date: meetingDate,
+            location: 'Digitalt beslut',
+            type: 'extra', // Extra bolagsstämma for ad-hoc dividend
+            meetingType: 'bolagsstamma',
+            attendeesCount: 1,
+            chairperson: 'Ägaren',
+            secretary: 'Ägaren',
+            status: 'protokoll signerat', // Auto-signed
+            decisions: [{
+                id: newDecisionId,
+                title: 'Beslut om vinstutdelning',
+                decision: `Stämman beslutade att dela ut ${amount} kr till aktieägarna.`,
+                type: 'dividend',
+                amount: amount,
+                booked: true // Auto-book
+            }]
+        })
+
+        // 2. Book Verification (The Money)
+        await addVerification({
+            description: `Utdelning ${year}`,
+            date: meetingDate,
+            rows: [
+                {
+                    account: "2091 Balanserad vinst",
+                    debit: amount,
+                    credit: 0,
+                    description: "Minskning av fritt eget kapital"
+                },
+                {
+                    account: "1930 Bankkonto",
+                    debit: 0,
+                    credit: amount,
+                    description: "Utbetalning av utdelning"
+                }
+            ]
+        })
+
+        success(
+            "Utdelning registrerad",
+            `Beslut protokollfört och ${amount.toLocaleString('sv-SE')} kr utbetalt.`
+        )
+
+        setShowRegisterDialog(false)
+        setRegisterAmount("")
+    }
 
     const filteredK10 = useMemo(() => {
         return k10Declarations.filter(k10 =>
@@ -116,7 +233,7 @@ export function UtdelningContent() {
     }, [searchQuery])
 
     // Toggle selection for a single row
-    const toggleSelection = (year: number) => {
+    const toggleSelection = (year: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev)
             if (next.has(year)) {
@@ -133,7 +250,7 @@ export function UtdelningContent() {
         if (selectedIds.size === k10Declarations.length) {
             setSelectedIds(new Set())
         } else {
-            setSelectedIds(new Set(k10Declarations.map(k => k.year)))
+            setSelectedIds(new Set(k10Declarations.map(k => String(k.year))))
         }
     }
 
@@ -161,6 +278,8 @@ export function UtdelningContent() {
             setChatMessages(prev => [...prev, { role: "ai", text: response }])
         }, 500)
     }
+
+
 
     return (
         <main className="px-6 pt-2 pb-6">
@@ -225,24 +344,71 @@ export function UtdelningContent() {
                     <Card className="overflow-hidden flex flex-col">
                         <div className="px-4 py-3 border-b-2 border-border/60 flex items-center justify-between">
                             <h2 className="font-medium">Utdelningshistorik</h2>
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                                        <Expand className="h-4 w-4" />
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-xl">
-                                    <DialogHeader>
-                                        <DialogTitle>Utdelningshistorik</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="max-h-[60vh] overflow-y-auto">
-                                        <DividendTable data={dividendHistory} />
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
+                            <div className="flex gap-2">
+                                <Dialog open={showRegisterDialog} onOpenChange={setShowRegisterDialog}>
+                                    <DialogTrigger asChild>
+                                        <Button size="sm" variant="outline" className="h-7 text-xs">
+                                            <DollarSign className="h-3 w-3 mr-1" />
+                                            Registrera utdelning
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Registrera ny utdelning</DialogTitle>
+                                        </DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <div className="space-y-2">
+                                                <Label>Belopp (kr)</Label>
+                                                <Input
+                                                    value={registerAmount}
+                                                    onChange={e => setRegisterAmount(e.target.value)}
+                                                    placeholder="t.ex. 50 000"
+                                                    type="number"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Inkomstår</Label>
+                                                <Input
+                                                    value={registerYear}
+                                                    onChange={e => setRegisterYear(e.target.value)}
+                                                    placeholder="2024"
+                                                    type="number"
+                                                />
+                                            </div>
+                                            <div className="bg-muted p-3 rounded-md text-sm text-muted-foreground">
+                                                <p className="font-medium text-foreground mb-1">Detta händer:</p>
+                                                <ul className="list-disc list-inside space-y-1">
+                                                    <li>Ett digitalt stämmoprotokoll skapas automatiskt (Bolagsverket-krav).</li>
+                                                    <li>Beloppet bokförs och dras från Bolagets resultat.</li>
+                                                    <li>K10-underlaget uppdateras.</li>
+                                                </ul>
+                                            </div>
+                                            <Button className="w-full" onClick={handleRegisterDividend}>
+                                                Bekräfta utdelning
+                                            </Button>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                                            <Expand className="h-4 w-4" />
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-xl">
+                                        <DialogHeader>
+                                            <DialogTitle>Utdelningshistorik</DialogTitle>
+                                        </DialogHeader>
+                                        <div className="max-h-[60vh] overflow-y-auto">
+                                            <DividendTable data={displayHistory} />
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
                         </div>
                         <div className="max-h-[280px] overflow-y-auto">
-                            <DividendTable data={dividendHistory} className="border-y-0" />
+                            <DividendTable data={displayHistory} className="border-y-0" />
                         </div>
                     </Card>
                 </div>
@@ -503,11 +669,11 @@ export function UtdelningContent() {
                         {filteredK10.map((k10) => (
                             <DataTableRow
                                 key={k10.year}
-                                selected={selectedIds.has(k10.year)}
+                                selected={selectedIds.has(String(k10.year))}
                             >
                                 <DataTableCell className="w-10">
                                     <Checkbox
-                                        checked={selectedIds.has(k10.year)}
+                                        checked={selectedIds.has(String(k10.year))}
                                         onCheckedChange={() => toggleSelection(k10.year)}
                                         onClick={(e) => e.stopPropagation()}
                                     />

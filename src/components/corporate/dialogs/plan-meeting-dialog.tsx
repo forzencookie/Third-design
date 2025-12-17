@@ -37,6 +37,23 @@ export function PlanMeetingDialog({
         ? "Skapa ett nytt årsmöte och förbereda dagordning"
         : "Skapa en ny bolagsstämma och förbereda dagordning"
 
+    const [date, setDate] = React.useState("")
+    const [year, setYear] = React.useState("")
+    const [time, setTime] = React.useState("19:00")
+    const [location, setLocation] = React.useState("")
+    const [meetingType, setMeetingType] = React.useState<"ordinarie" | "extra">("ordinarie")
+
+    // Reset state when dialog opens
+    React.useEffect(() => {
+        if (open) {
+            setDate("")
+            setYear(new Date().getFullYear().toString())
+            setTime("19:00")
+            setLocation("")
+            setMeetingType("ordinarie")
+        }
+    }, [open])
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg" expandable>
@@ -48,31 +65,45 @@ export function PlanMeetingDialog({
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Datum</Label>
-                            <Input type="date" />
+                            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                         </div>
                         {isAnnual ? (
                             <div className="space-y-2">
                                 <Label>Tid</Label>
-                                <Input type="time" defaultValue="19:00" />
+                                <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
                             </div>
                         ) : (
                             <div className="space-y-2">
                                 <Label>År</Label>
-                                <Input type="number" placeholder="2025" />
+                                <Input type="number" placeholder="2025" value={year} onChange={(e) => setYear(e.target.value)} />
                             </div>
                         )}
                     </div>
                     <div className="space-y-2">
                         <Label>Plats</Label>
-                        <Input placeholder={isAnnual ? "Föreningslokalen, Digitalt via Zoom..." : "Kontoret, Digitalt via Teams..."} />
+                        <Input
+                            placeholder={isAnnual ? "Föreningslokalen, Digitalt via Zoom..." : "Kontoret, Digitalt via Teams..."}
+                            value={location}
+                            onChange={(e) => setLocation(e.target.value)}
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label>{isAnnual ? "Mötestyp" : "Stämmotyp"}</Label>
                         <div className="flex gap-2">
-                            <Button variant="outline" size="sm" className="flex-1">
+                            <Button
+                                variant={meetingType === "ordinarie" ? "default" : "outline"}
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => setMeetingType("ordinarie")}
+                            >
                                 {isAnnual ? "Ordinarie årsmöte" : "Ordinarie årsstämma"}
                             </Button>
-                            <Button variant="outline" size="sm" className="flex-1">
+                            <Button
+                                variant={meetingType === "extra" ? "default" : "outline"}
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => setMeetingType("extra")}
+                            >
                                 {isAnnual ? "Extra årsmöte" : "Extra bolagsstämma"}
                             </Button>
                         </div>
@@ -100,7 +131,13 @@ export function PlanMeetingDialog({
                         Avbryt
                     </Button>
                     <Button onClick={() => {
-                        onSubmit?.({})
+                        onSubmit?.({
+                            date,
+                            year,
+                            time,
+                            location,
+                            type: meetingType
+                        })
                         onOpenChange(false)
                     }}>
                         <Sparkles className="h-4 w-4 mr-2" />

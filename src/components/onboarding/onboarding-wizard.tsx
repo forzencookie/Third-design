@@ -3,19 +3,20 @@
 import * as React from "react"
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { 
-  X, 
-  Check, 
-  ChevronRight, 
-  Building2, 
-  CreditCard, 
-  FileText, 
+import {
+  X,
+  Check,
+  ChevronRight,
+  Building2,
+  CreditCard,
+  FileText,
   Users,
   Sparkles,
   ArrowRight,
   ExternalLink,
   CheckCircle2,
   Landmark,
+  UploadCloud,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -83,6 +84,16 @@ const onboardingSteps = [
     ],
   },
   {
+    id: "import-history",
+    title: "Importera historik",
+    description: "Har du bokföring från ett annat system? Ladda upp en SIE-fil så importerar vi allt åt dig.",
+    icon: UploadCloud,
+    color: "text-blue-600",
+    bgColor: "bg-blue-500/10",
+    optional: true,
+    hasSIEImport: true,
+  },
+  {
     id: "documents",
     title: "Ladda upp underlag",
     description: "Har du kvitton och fakturor? Släpp dem här så tar AI:n hand om resten.",
@@ -130,7 +141,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
     // Mark current step as completed
     setCompletedSteps(prev => new Set([...prev, step.id]))
     setShowMoreBanks(false)
-    
+
     if (isLastStep) {
       onComplete()
     } else {
@@ -184,11 +195,11 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
                 key={s.id}
                 className={cn(
                   "w-2 h-2 rounded-full transition-all duration-150",
-                  index === currentStep 
-                    ? "w-8 bg-primary" 
+                  index === currentStep
+                    ? "w-8 bg-primary"
                     : completedSteps.has(s.id)
-                    ? "bg-primary"
-                    : "bg-muted"
+                      ? "bg-primary"
+                      : "bg-muted"
                 )}
               />
             ))}
@@ -282,7 +293,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
                       )}
                     </button>
                   ))}
-                  <button 
+                  <button
                     onClick={() => setShowMoreBanks(true)}
                     className="flex flex-col items-center gap-2 p-4 rounded-lg border border-dashed border-border/50 text-muted-foreground hover:border-border hover:text-foreground transition-all"
                   >
@@ -296,7 +307,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
               {step.id === "bank" && step.moreBanks && showMoreBanks && (
                 <div className="max-w-lg mx-auto">
-                  <button 
+                  <button
                     onClick={() => setShowMoreBanks(false)}
                     className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
                   >
@@ -319,6 +330,52 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
                 </div>
               )}
 
+              {step.id === "import-history" && (
+                <div className="max-w-md mx-auto">
+                  <div
+                    className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => document.getElementById('sie-upload')?.click()}
+                  >
+                    <input
+                      id="sie-upload"
+                      type="file"
+                      accept=".se,.si,.sie"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+
+                        // Handle upload
+                        const formData = new FormData()
+                        formData.append('file', file)
+
+                        try {
+                          // Show loading state could be handled here if we exposed it
+                          const res = await fetch('/api/sie/import', {
+                            method: 'POST',
+                            body: formData
+                          })
+                          const data = await res.json()
+                          if (data.success) {
+                            // Maybe show specific success UI or toast?
+                            // For wizard flow, we might just want to show "Imported!" or auto-advance?
+                            // Let's simplify and show success text in this box.
+                            alert(`Importerade ${data.stats.verifications} verifikationer och ${data.stats.accounts} konton!`)
+                          }
+                        } catch (err) {
+                          console.error(err)
+                          alert("Kunde inte importera filen.")
+                        }
+                      }}
+                    />
+                    <UploadCloud className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="font-medium mb-1">Släpp din SIE-fil här</h3>
+                    <p className="text-sm text-muted-foreground">eller klicka för att välja fil</p>
+                    <p className="text-xs text-muted-foreground mt-4">Stöder SIE4 standarden (.se)</p>
+                  </div>
+                </div>
+              )}
+
               {step.id === "documents" && step.options && (
                 <div className="space-y-3 max-w-md mx-auto">
                   {step.options.map((option, index) => (
@@ -333,8 +390,8 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
                         "w-10 h-10 rounded-lg flex items-center justify-center",
                         index === 0 ? "bg-primary text-primary-foreground" : "bg-muted"
                       )}>
-                        {index === 0 ? <FileText className="h-5 w-5" /> : 
-                         index === 1 ? <span>@</span> : <ArrowRight className="h-5 w-5" />}
+                        {index === 0 ? <FileText className="h-5 w-5" /> :
+                          index === 1 ? <span>@</span> : <ArrowRight className="h-5 w-5" />}
                       </div>
                       <div>
                         <p className="font-medium">{option.label}</p>

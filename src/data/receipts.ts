@@ -14,7 +14,7 @@ export const mockReceipts: Receipt[] = [
         supplier: "Adobe Systems",
         date: "May 2, 2024",
         amount: "-239.00 kr",
-        status: RECEIPT_STATUSES.VERIFIED,
+        status: RECEIPT_STATUSES.RECORDED,
         category: "Software",
         attachment: "invoice_adobe_may.pdf",
     },

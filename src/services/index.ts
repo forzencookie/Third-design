@@ -22,7 +22,7 @@ export * from "./calendar-processor"
 export * from "./myndigheter-client"
 
 // Bank client utilities (legacy - prefer using /api/bank endpoints directly)
-export * from "./bank-client"
+export * as BankSimulator from "./bank-client"
 
 // Note: bank-transaction-service removed to avoid duplicate exports
 // Use /api/bank endpoints instead for bank transaction flow

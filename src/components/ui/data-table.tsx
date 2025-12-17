@@ -160,6 +160,8 @@ export interface DataTableCellProps {
     bold?: boolean
     /** Column span */
     colSpan?: number
+    /** Click handler */
+    onClick?: (e?: React.MouseEvent) => void
 }
 
 export function DataTableCell({
@@ -170,6 +172,7 @@ export function DataTableCell({
     muted,
     bold,
     colSpan,
+    onClick,
 }: DataTableCellProps) {
     return (
         <td
@@ -183,6 +186,7 @@ export function DataTableCell({
                 className
             )}
             colSpan={colSpan}
+            onClick={onClick}
         >
             {children}
         </td>
@@ -232,13 +236,13 @@ export interface DataTableAddRowProps {
     className?: string
 }
 
-export function DataTableAddRow({ 
-    label = "Ny rad", 
+export function DataTableAddRow({
+    label = "Ny rad",
     onClick,
-    className 
+    className
 }: DataTableAddRowProps) {
     return (
-        <div 
+        <div
             className={cn(
                 "border-t border-border/40 p-2 text-sm text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center gap-2",
                 className

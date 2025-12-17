@@ -1,13 +1,11 @@
 /**
  * Bank API - Single Source of Truth
  * 
- * This simulates a real bank API (like SEB, Nordea via Open Banking).
- * All transaction and balance data flows through here.
- * 
- * In production, this would be replaced with actual bank API integration.
+ * Simulated via file-based persistence for "Real" feel in demo mode.
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { db } from "@/lib/server-db"
 
 // ============================================================================
 // Types
@@ -37,20 +35,6 @@ export interface BankBalances {
 }
 
 // ============================================================================
-// In-Memory Bank Database (simulates real bank storage)
-// ============================================================================
-
-// Global state - persists for server lifetime
-const bankState = {
-  transactions: new Map<string, BankTransaction>(),
-  balances: {
-    foretagskonto: 250000,
-    sparkonto: 150000,
-    skattekonto: 45000,
-  } as BankBalances,
-}
-
-// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -66,22 +50,24 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const account = searchParams.get('account') as BankAccountType | null
   const limit = parseInt(searchParams.get('limit') || '50')
-  
+
+  const data = await db.get()
+
   // Get all transactions, optionally filtered by account
-  let transactions = Array.from(bankState.transactions.values())
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-  
+  let transactions = [...data.transactions]
+    .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
   if (account) {
-    transactions = transactions.filter(t => t.account === account)
+    transactions = transactions.filter((t: any) => t.account === account)
   }
-  
+
   transactions = transactions.slice(0, limit)
-  
+
   return NextResponse.json({
-    balances: bankState.balances,
+    balances: data.balances,
     transactions,
     count: transactions.length,
-    total: bankState.transactions.size,
+    total: data.transactions.length,
   })
 }
 
@@ -92,7 +78,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    
+
     const {
       description,
       amount,
@@ -101,23 +87,24 @@ export async function POST(request: NextRequest) {
       counterparty,
       type = 'payment' as TransactionType,
     } = body
-    
+
     // Validate account type
     const validAccounts: BankAccountType[] = ['foretagskonto', 'sparkonto', 'skattekonto']
     const safeAccount: BankAccountType = validAccounts.includes(account) ? account : 'foretagskonto'
-    
+
     if (!description || amount === undefined) {
       return NextResponse.json(
         { error: 'Missing required fields: description, amount' },
         { status: 400 }
       )
     }
-    
-    // Update balance
-    const previousBalance = bankState.balances[safeAccount]
+
+    const data = await db.get()
+
+    // Calculate new balance (note: balances are still mocked in db.get())
+    const previousBalance = data.balances[safeAccount] || 0
     const newBalance = previousBalance + amount
-    bankState.balances[safeAccount] = newBalance
-    
+
     // Create transaction record
     const transaction: BankTransaction = {
       id: generateId(),
@@ -132,16 +119,16 @@ export async function POST(request: NextRequest) {
       type,
       status: 'completed',
     }
-    
-    // Store transaction
-    bankState.transactions.set(transaction.id, transaction)
-    
+
+    // Store in DB via Supabase
+    await db.addTransaction(transaction)
+
     return NextResponse.json({
       success: true,
       transaction,
-      balances: bankState.balances,
+      balances: { ...data.balances, [safeAccount]: newBalance },
     })
-    
+
   } catch (error) {
     console.error('Bank API error:', error)
     return NextResponse.json(
@@ -153,23 +140,14 @@ export async function POST(request: NextRequest) {
 
 // ============================================================================
 // DELETE /api/bank - Reset bank (for testing/demo)
+// Note: This is now a no-op since we use Supabase. Manual DB reset required.
 // ============================================================================
 
 export async function DELETE() {
-  const count = bankState.transactions.size
-  
-  // Clear transactions
-  bankState.transactions.clear()
-  
-  // Reset balances to defaults
-  bankState.balances = {
-    foretagskonto: 250000,
-    sparkonto: 150000,
-    skattekonto: 45000,
-  }
-  
+  // In Supabase mode, we don't support full DB reset via API
+  // This would need to be done directly in Supabase console
   return NextResponse.json({
-    message: `Bank reset. Cleared ${count} transactions.`,
-    balances: bankState.balances,
+    message: 'Bank reset is not supported in Supabase mode. Use Supabase console to reset.',
+    warning: 'No data was modified.',
   })
 }

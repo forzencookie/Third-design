@@ -23,10 +23,17 @@ interface CompanyInfo {
   // Additional metadata
   registrationDate?: string
   address?: string
+  city?: string
+  zipCode?: string
+  email?: string
+  phone?: string
+  vatNumber?: string
+  contactPerson?: string
   // Settings
   hasMomsRegistration: boolean
   hasEmployees: boolean
   fiscalYearEnd: string // MM-DD format, e.g., "12-31"
+  accountingMethod: 'cash' | 'invoice'
 }
 
 interface CompanyContextValue {
@@ -34,15 +41,15 @@ interface CompanyContextValue {
   company: CompanyInfo | null
   companyType: CompanyType
   isLoading: boolean
-  
+
   // Actions
   setCompanyType: (type: CompanyType) => void
   setCompany: (company: CompanyInfo) => void
   updateCompany: (updates: Partial<CompanyInfo>) => void
-  
+
   // Feature checks
   hasFeature: (feature: FeatureKey) => boolean
-  
+
   // Helpers
   companyTypeName: string
   companyTypeFullName: string
@@ -54,12 +61,20 @@ interface CompanyContextValue {
 
 const defaultCompany: CompanyInfo = {
   id: "demo-company",
-  name: "Mitt Företag",
-  orgNumber: "559123-4567",
+  name: "Mitt Företag AB",
+  orgNumber: "556123-4567",
+  vatNumber: "SE556123456701",
+  address: "Storgatan 1",
+  city: "Stockholm",
+  zipCode: "111 22",
+  email: "info@mittforetag.se",
+  phone: "070-123 45 67",
+  contactPerson: "Johan Svensson",
   companyType: "ab",
   hasMomsRegistration: true,
   hasEmployees: true,
   fiscalYearEnd: "12-31",
+  accountingMethod: "invoice",
 }
 
 // ============================================
@@ -80,9 +95,9 @@ interface CompanyProviderProps {
   initialCompanyType?: CompanyType
 }
 
-export function CompanyProvider({ 
-  children, 
-  initialCompanyType = "ab" 
+export function CompanyProvider({
+  children,
+  initialCompanyType = "ab"
 }: CompanyProviderProps) {
   const [company, setCompanyState] = useState<CompanyInfo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -122,13 +137,25 @@ export function CompanyProvider({
   // Get current company type (fallback to 'ab')
   const companyType = company?.companyType ?? "ab"
 
-  // Set just the company type
+  // Set just the company type with smart defaults
   const setCompanyType = useCallback((type: CompanyType) => {
     setCompanyState(prev => {
+      // Smart default: EF usually uses Cash method, AB usually uses Invoice method
+      // But smaller ABs can use Cash. For safety/standard, default AB to Invoice, EF to Cash.
+      const defaultMethod = type === 'ef' ? 'cash' : 'invoice'
+
       if (!prev) {
-        return { ...defaultCompany, companyType: type }
+        return {
+          ...defaultCompany,
+          companyType: type,
+          accountingMethod: defaultMethod
+        }
       }
-      return { ...prev, companyType: type }
+      return {
+        ...prev,
+        companyType: type,
+        accountingMethod: defaultMethod
+      }
     })
   }, [])
 

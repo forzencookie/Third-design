@@ -13,11 +13,11 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { 
-    Tooltip, 
-    TooltipContent, 
-    TooltipTrigger, 
-    TooltipProvider 
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+    TooltipProvider
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useCompany } from "@/providers/company-provider"
@@ -27,22 +27,24 @@ import { allTabs } from "@/components/payroll/constants"
 import { useLastUpdated } from "@/hooks/use-last-updated"
 
 // Lazy loaded tab components
-import { 
-    LazyLonesbeskContent, 
-    LazyAGIContent, 
+import {
+    LazyLonesbeskContent,
+    LazyAGIContent,
     LazyUtdelningContent,
     preloadPayrollTab
 } from "@/components/shared"
 
 // External components for EF/HB/KB tabs
 import { EgenavgifterCalculator, DelagaruttagManager } from "@/components/ownership"
+import { TeamTab } from "@/components/payroll/team-tab"
+import { MileageLog } from "@/components/payroll/mileage-log"
 
 function PayrollPageContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const { hasFeature } = useCompany()
     const lastUpdated = useLastUpdated()
-    
+
     // Filter tabs based on available features for the current company type
     const tabs = useMemo(() => {
         return allTabs.filter(tab => {
@@ -90,7 +92,7 @@ function PayrollPageContent() {
                             {tabs.map((tab) => {
                                 const isActive = currentTab === tab.id
                                 const Icon = tab.icon
-                                
+
                                 return (
                                     <Tooltip key={tab.id}>
                                         <TooltipTrigger asChild>
@@ -100,8 +102,8 @@ function PayrollPageContent() {
                                                 onFocus={() => preloadPayrollTab(tab.id)}
                                                 className={cn(
                                                     "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                                                    isActive 
-                                                        ? "bg-primary/10 text-primary" 
+                                                    isActive
+                                                        ? "bg-primary/10 text-primary"
                                                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                                                 )}
                                             >
@@ -117,7 +119,7 @@ function PayrollPageContent() {
                                     </Tooltip>
                                 )
                             })}
-                            
+
                             <div className="ml-auto text-sm text-muted-foreground">
                                 {lastUpdated}
                             </div>
@@ -128,6 +130,8 @@ function PayrollPageContent() {
                 {/* Tab Content - Lazy loaded */}
                 <div className="bg-background">
                     {currentTab === "lonebesked" && <LazyLonesbeskContent />}
+                    {currentTab === "resor" && <MileageLog />}
+                    {currentTab === "team" && <TeamTab />}
                     {currentTab === "agi" && <LazyAGIContent />}
                     {currentTab === "utdelning" && <LazyUtdelningContent />}
                     {currentTab === "egenavgifter" && (

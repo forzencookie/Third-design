@@ -24,6 +24,7 @@ import {
   TrendingUp,
   FileCheck,
   Building,
+  Banknote,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -54,11 +55,18 @@ import {
   type GeneralMeeting,
   type GeneralMeetingDecision
 } from "@/data/ownership"
+import { useCorporate } from "@/hooks/use-corporate"
+
+import { useVerifications } from "@/hooks/use-verifications"
+import { useToast } from "@/components/ui/toast"
 
 export function Bolagsstamma() {
-  const [meetings] = useState<GeneralMeeting[]>(
-    mockGeneralMeetings.filter(m => m.meetingType === 'bolagsstamma')
-  )
+  const { meetings: allMeetings, addMeeting, updateDecision } = useCorporate()
+  const { addVerification } = useVerifications()
+  const { success } = useToast()
+  const meetings = allMeetings.filter(m => m.meetingType === 'bolagsstamma')
+
+
   const [searchQuery, setSearchQuery] = useState("")
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showSendNoticeDialog, setShowSendNoticeDialog] = useState(false)
@@ -70,7 +78,13 @@ export function Bolagsstamma() {
     const upcoming = meetings.filter(m => m.status === 'kallad').length
     const completed = meetings.filter(m => m.status === 'protokoll signerat').length
     const totalDecisions = meetings.reduce((sum, m) => sum + m.decisions.length, 0)
-    const nextMeeting = meetings.find(m => m.status === 'kallad')
+
+    // Sort meetings by date to find the next one correctly
+    const sortedUpcoming = meetings
+      .filter(m => m.status === 'kallad')
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    const nextMeeting = sortedUpcoming[0]
 
     // Calculate days until next meeting
     const daysUntilNext = nextMeeting
@@ -118,6 +132,36 @@ export function Bolagsstamma() {
     // Simulate AI generation
     await new Promise(resolve => setTimeout(resolve, 2000))
     setIsGeneratingAI(false)
+  }
+
+  const handleBookDecision = (meeting: GeneralMeeting, decision: GeneralMeetingDecision) => {
+    if (!decision.amount) return
+
+    addVerification({
+      description: `Utdelning enligt stämmobeslut ${meeting.year}`,
+      date: meeting.date,
+      rows: [
+        {
+          account: "2091 Balanserad vinst",
+          debit: decision.amount,
+          credit: 0,
+          description: "Minskning av fritt eget kapital"
+        },
+        {
+          account: "2898 Skuld till aktieägare",
+          debit: 0,
+          credit: decision.amount,
+          description: "Uppbokad skuld till aktieägare"
+        }
+      ]
+    })
+
+    updateDecision(meeting.id, decision.id, { booked: true })
+
+    success(
+      "Utdelning bokförd",
+      `Utdelning på ${decision.amount.toLocaleString('sv-SE')} kr har bokförts som en skuld till aktieägarna.`
+    )
   }
 
   // Standard agenda for annual meeting
@@ -230,7 +274,21 @@ export function Bolagsstamma() {
             type="general"
             defaultAgenda={standardAgenda}
             onSubmit={(data) => {
-              console.log("General meeting planned", data)
+              addMeeting({
+                year: parseInt(data.year) || new Date().getFullYear(),
+                date: data.date,
+                location: data.location,
+                type: data.type === 'extra' ? 'extra' : 'ordinarie',
+                meetingType: 'bolagsstamma',
+                attendeesCount: 0,
+                chairperson: '',
+                secretary: '',
+                decisions: [],
+                status: 'kallad',
+                // Mock data for AB specific fields if needed
+                sharesRepresented: 0,
+                votesRepresented: 0,
+              })
             }}
           />
 
@@ -362,15 +420,48 @@ export function Bolagsstamma() {
                         {meeting.decisions.map((decision, index) => (
                           <div
                             key={decision.id}
-                            className="flex items-start gap-3 p-3 bg-muted rounded-lg"
+                            className={cn(
+                              "flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-3 rounded-lg border",
+                              decision.booked ? "bg-green-50 border-green-100" : "bg-muted/50 border-border"
+                            )}
                           >
-                            <span className="text-muted-foreground font-mono text-sm">
-                              §{index + 1}
-                            </span>
-                            <div className="space-y-1">
-                              <p className="font-medium text-sm">{decision.title}</p>
-                              <p className="text-sm text-muted-foreground">{decision.decision}</p>
+                            <div className="flex items-start gap-3">
+                              <span className="text-muted-foreground font-mono text-sm mt-0.5">
+                                §{index + 1}
+                              </span>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium text-sm">{decision.title}</p>
+                                  {decision.booked && (
+                                    <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1">
+                                      <CheckCircle className="h-3 w-3" />
+                                      Bokförd
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground">{decision.decision}</p>
+                                {decision.amount && (
+                                  <p className="text-sm font-medium mt-1">
+                                    Belopp: {decision.amount.toLocaleString('sv-SE')} kr
+                                  </p>
+                                )}
+                              </div>
                             </div>
+
+                            {decision.type === 'dividend' && decision.amount && !decision.booked && meeting.status === 'protokoll signerat' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleBookDecision(meeting, decision)
+                                }}
+                              >
+                                <Banknote className="h-3.5 w-3.5 mr-2 text-green-600" />
+                                Bokför utdelning
+                              </Button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -458,3 +549,4 @@ export function Bolagsstamma() {
     </div>
   )
 }
+

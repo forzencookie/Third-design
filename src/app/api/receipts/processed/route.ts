@@ -1,41 +1,64 @@
 /**
  * Processed Receipts API
  * 
- * Fetches NAKED receipts from mock API and processes them
+ * GET: Fetches receipts from mockDB
+ * POST: Saves a new receipt to mockDB
  */
 
-import { NextResponse } from "next/server"
-import { 
-  processReceipts, 
-  type NakedReceipt 
-} from "@/services/receipt-processor"
+import { NextRequest, NextResponse } from "next/server"
+import { mockDB } from "@/data/mock-db"
+import { randomUUID } from "crypto"
 
 export async function GET() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseUrl}/api/mock/receipts`, {
-      cache: 'no-store'
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch from mock API')
-    }
-    
-    const data = await response.json()
-    const nakedReceipts: NakedReceipt[] = data.receipts || []
-    
-    const processedReceipts = processReceipts(nakedReceipts)
-    
+    // Return receipts from mockDB
+    const receipts = mockDB.receipts || []
+
     return NextResponse.json({
-      receipts: processedReceipts,
-      count: processedReceipts.length,
+      receipts,
+      count: receipts.length,
       type: "processed"
     })
-    
+
   } catch (error) {
-    console.error('Error processing receipts:', error)
+    console.error('Error fetching receipts:', error)
     return NextResponse.json(
-      { error: 'Failed to process receipts' },
+      { error: 'Failed to fetch receipts' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+
+    const newReceipt = {
+      id: body.id || `REC-${randomUUID().slice(0, 8)}`,
+      supplier: body.supplier,
+      date: body.date,
+      amount: body.amount,
+      moms: body.moms || null,
+      category: body.category,
+      status: body.status || 'pending',
+      attachment: body.attachment || null,
+      createdAt: new Date().toISOString()
+    }
+
+    // Add to mockDB
+    mockDB.receipts = [newReceipt, ...(mockDB.receipts || [])]
+
+    console.log(`[Receipts API] Created receipt: ${newReceipt.id} for ${newReceipt.supplier}`)
+
+    return NextResponse.json({
+      success: true,
+      receipt: newReceipt
+    })
+
+  } catch (error) {
+    console.error('Error saving receipt:', error)
+    return NextResponse.json(
+      { error: 'Failed to save receipt' },
       { status: 500 }
     )
   }

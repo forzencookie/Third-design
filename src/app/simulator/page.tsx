@@ -30,6 +30,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { ReceiptDocument } from "@/components/expenses"
+import { InvoiceDocument } from "@/components/revenue"
+import type { ReceiptDocumentData, InvoiceDocumentData } from "@/types/documents"
 
 
 
@@ -111,9 +115,20 @@ interface GeneratedReceipt {
   id: string
   vendor: string
   amount: string
+  date: string
   category: string
   status: string
   ai_confidence?: number
+  visualData?: ReceiptDocumentData
+}
+
+interface GeneratedInvoice {
+  id: string
+  invoiceNumber: string
+  customerName: string
+  amount: number
+  issueDate: string
+  visualData?: InvoiceDocumentData
 }
 
 const RECEIPT_ACTIONS: {
@@ -251,6 +266,7 @@ export default function SimulatorPage() {
   const [batchCount, setBatchCount] = useState(5)
   const [recentTransactions, setRecentTransactions] = useState<DisplayTransaction[]>([])
   const [recentReceipts, setRecentReceipts] = useState<GeneratedReceipt[]>([])
+  const [recentInvoices, setRecentInvoices] = useState<GeneratedInvoice[]>([])
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [integrations, setIntegrations] = useState<Record<string, boolean>>({})
   const [lastInboxItem, setLastInboxItem] = useState<any>(null)
@@ -336,16 +352,15 @@ export default function SimulatorPage() {
     try {
       const data = getTransactionData(type)
 
-      // Send directly to Bank API (single source of truth)
-      const response = await fetch('/api/bank', {
+      // Send via External Bank API → Webhook → Internal API (production-ready flow)
+      const response = await fetch('/api/external/bank', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'transaction',
+          type: type,
+          amount: Math.abs(data.amount),
           description: data.description,
-          amount: data.amount,
-          account: 'foretagskonto',
-          reference: `REF-${Date.now().toString(36).toUpperCase()}`,
-          type: data.amount > 0 ? 'deposit' : 'payment',
         }),
       })
 
@@ -363,7 +378,7 @@ export default function SimulatorPage() {
         }
 
         setRecentTransactions(prev => [displayTx, ...prev].slice(0, 10))
-        setMessage({ type: 'success', text: `✓ Skapade: ${data.description} → Bank` })
+        setMessage({ type: 'success', text: `✓ ${data.description} → External API → Webhook → Bank` })
       } else {
         throw new Error(result.error || 'Unknown error')
       }
@@ -379,36 +394,23 @@ export default function SimulatorPage() {
     setMessage(null)
 
     try {
-      const types: TransactionType[] = ['income', 'subscription', 'travel', 'office', 'fika']
+      // Use External Bank API batch mode → Webhook → Internal API
+      const response = await fetch('/api/external/bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'batch',
+          count: batchCount,
+        }),
+      })
 
-      for (let i = 0; i < batchCount; i++) {
-        const type = types[Math.floor(Math.random() * types.length)]
-        const data = getTransactionData(type)
-
-        // Send to Bank API
-        const response = await fetch('/api/bank', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            description: data.description,
-            amount: data.amount,
-            account: 'foretagskonto',
-            reference: `REF-${Date.now().toString(36).toUpperCase()}-${i}`,
-            type: data.amount > 0 ? 'deposit' : 'payment',
-          }),
-        })
-
-        const result = await response.json()
-
-        // Small delay between transactions
-        await new Promise(resolve => setTimeout(resolve, 50))
-      }
+      const result = await response.json()
 
       // Refresh data from bank
       await fetchRecentData()
       setMessage({
         type: 'success',
-        text: `✓ Genererade ${batchCount} transaktioner → Bank`
+        text: `✓ ${result.count || batchCount} transaktioner → External API → Webhook → Bank`
       })
     } catch (error) {
       setMessage({ type: 'error', text: 'Kunde inte generera transaktioner' })
@@ -476,43 +478,59 @@ export default function SimulatorPage() {
     setMessage(null)
 
     try {
-      // Step 1: Create raw inbox item
-      const response = await fetch('/api/inbox', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', type }),
-      })
+      let response;
+      let itemTitle = type;
 
-      const result = await response.json()
+      // Route through appropriate external API based on type
+      if (type.startsWith('skatteverket') || type === 'slutlig-skatt' || type === 'moms-paminnelse') {
+        // Use External Skatteverket API → Webhook → Internal API
+        const skatteverketType = type.replace('skatteverket-', '');
+        response = await fetch('/api/external/skatteverket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: skatteverketType === 'skatt' ? 'slutlig-skatt' : skatteverketType }),
+        })
+        const result = await response.json()
+        itemTitle = result.document?.title || type
 
-      if (result.success && result.item) {
-        // Store the created item for preview
-        setLastInboxItem(result.item)
-
-        // Show inbox received and start AI processing
-        setMessage({ type: 'success', text: `✓ Post mottagen: ${result.item.title} - AI analyserar...` })
-        setLoading('ai-processing')
-
-        // Trigger AI processing (real OpenAI - takes 1-3 seconds naturally)
-        const aiResponse = await fetch('/api/ai/process-inbox', { method: 'POST' })
-        const aiResult = await aiResponse.json()
-
-        // Show result with AI processing info
-        if (aiResult.processed > 0) {
-          const batchInfo = aiResult.batchesProcessed > 1
-            ? ` (${aiResult.batchesProcessed} batches, ${aiResult.totalPending} items)`
-            : ''
-          const entityType = aiResult.results?.[0]?.entityType === 'receipt' ? 'Kvitto' : 'Faktura'
-          const errorInfo = aiResult.errors?.length > 0 ? ` - ${aiResult.errors.length} errors` : ''
-          setMessage({
-            type: 'success',
-            text: `✓ AI: ${aiResult.processed} ${entityType}${aiResult.processed > 1 ? 'or' : ''} skapad${batchInfo}${errorInfo}`
-          })
+        if (result.success) {
+          setLastInboxItem({ title: itemTitle, type })
+          setMessage({ type: 'success', text: `✓ ${itemTitle} → External API → Webhook → Inbox` })
         } else {
-          setMessage({ type: 'success', text: `✓ Dokumentet analyserat` })
+          throw new Error(result.error)
+        }
+      } else if (type.includes('gmail') || type.includes('outlook') || type.includes('yahoo')) {
+        // Use External Email API → Webhook → Internal API
+        const provider = type.split('-')[0]
+        response = await fetch('/api/external/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, type: 'invoice' }),
+        })
+        const result = await response.json()
+        itemTitle = result.email?.subject || type
+
+        if (result.success) {
+          setLastInboxItem({ title: itemTitle, type })
+          setMessage({ type: 'success', text: `✓ ${itemTitle} → External API → Webhook → Inbox` })
+        } else {
+          throw new Error(result.error)
         }
       } else {
-        setMessage({ type: 'error', text: result.error || 'Kunde inte skapa post' })
+        // Fallback: use direct inbox API for other types
+        response = await fetch('/api/inbox', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create', type }),
+        })
+        const result = await response.json()
+
+        if (result.success && result.item) {
+          setLastInboxItem(result.item)
+          setMessage({ type: 'success', text: `✓ Post mottagen: ${result.item.title}` })
+        } else {
+          throw new Error(result.error)
+        }
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Nätverksfel - kunde inte nå API' })
@@ -531,18 +549,26 @@ export default function SimulatorPage() {
         </p>
       </div>
 
-      {/* Data Flow Diagram */}
+      {/* Data Flow Diagram - Shows the new API-first architecture */}
       <Card className="border-dashed border-2 bg-muted/30">
         <CardContent className="py-4">
-          <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-xs sm:text-sm text-muted-foreground">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-background rounded-lg border">
               <Shuffle className="h-4 w-4" />
               <span className="font-medium">Simulator</span>
             </div>
             <ArrowRight className="h-4 w-4" />
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg border border-purple-200">
+              <span className="font-medium">External API</span>
+            </div>
+            <ArrowRight className="h-4 w-4" />
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">
+              <span className="font-medium">Webhook</span>
+            </div>
+            <ArrowRight className="h-4 w-4" />
             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200">
               <Wallet className="h-4 w-4" />
-              <span className="font-medium">Bankkonto</span>
+              <span className="font-medium">Supabase</span>
             </div>
             <ArrowRight className="h-4 w-4" />
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg border border-blue-200">
@@ -550,6 +576,9 @@ export default function SimulatorPage() {
               <span className="font-medium">Dashboard</span>
             </div>
           </div>
+          <p className="text-xs text-center text-muted-foreground mt-2">
+            Swap "External API" för Tink/Skatteverket/Gmail i produktion
+          </p>
         </CardContent>
       </Card>
 
@@ -591,10 +620,6 @@ export default function SimulatorPage() {
             <FileText className="h-4 w-4" />
             Kundfakturor
           </TabsTrigger>
-          {/* <TabsTrigger value="supplier-invoices" className="gap-2">
-            <Building2 className="h-4 w-4" />
-            Leverantörsfakturor
-          </TabsTrigger> */}
         </TabsList>
 
         {/* Transactions Tab */}
@@ -799,9 +824,9 @@ export default function SimulatorPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Senaste kvitton</CardTitle>
+                  <CardTitle>Genererade kvitton</CardTitle>
                   <CardDescription>
-                    Gå till <a href="/dashboard/accounting?tab=kvitton" className="text-primary underline">Kvitton</a> för att matcha dem
+                    Klicka på ögat för att se det genererade kvittot
                   </CardDescription>
                 </div>
                 <Button
@@ -822,20 +847,41 @@ export default function SimulatorPage() {
                       className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
                     >
                       <div className="flex items-center gap-3">
-                        <Receipt className="h-4 w-4 text-blue-600" />
+                        <div className="h-10 w-10 flex items-center justify-center rounded bg-background border">
+                          {receipt.visualData?.companyLogo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={receipt.visualData.companyLogo} alt="Logo" className="h-6 w-auto object-contain" />
+                          ) : (
+                            <Receipt className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </div>
                         <div>
                           <div className="font-medium">{receipt.vendor}</div>
-                          <div className="text-xs text-muted-foreground">{receipt.category}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {receipt.date} • {receipt.category}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="tabular-nums font-medium text-red-600">
-                          -{receipt.amount}
-                        </div>
-                        {receipt.ai_confidence && (
+
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="font-medium">{receipt.amount} kr</div>
                           <div className="text-xs text-muted-foreground">
-                            AI: {receipt.ai_confidence}%
+                            {receipt.visualData ? 'Preview tillgänglig' : 'Snabbskapad'}
                           </div>
+                        </div>
+
+                        {receipt.visualData && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md p-0 overflow-hidden bg-white border-none shadow-2xl">
+                              <ReceiptDocument data={receipt.visualData} />
+                            </DialogContent>
+                          </Dialog>
                         )}
                       </div>
                     </div>
@@ -844,6 +890,7 @@ export default function SimulatorPage() {
               </CardContent>
             </Card>
           )}
+
         </TabsContent>
 
         {/* Inbox Tab */}
@@ -1022,68 +1069,108 @@ export default function SimulatorPage() {
         <TabsContent value="invoices" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Skapa kundfakturor</CardTitle>
-              <CardDescription>
-                Generera fakturor som skickas till kunder
-              </CardDescription>
+              <CardTitle>Generera kundfakturor</CardTitle>
+              <CardDescription>Simulera utgående fakturor för intäkter</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Button
-                onClick={async () => {
-                  setLoading('invoice')
-                  try {
-                    const res = await fetch('/api/mock/invoices', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ count: 1 })
-                    })
-                    const data = await res.json()
-                    if (data.invoices) {
-                      setMessage({ type: 'success', text: `✓ Skapade ${data.invoices.length} faktura(or)` })
+            <CardContent>
+              <div className="flex items-end gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="inv-count">Antal fakturor</Label>
+                  <Input
+                    id="inv-count"
+                    type="number"
+                    min={1}
+                    max={10}
+                    defaultValue={1}
+                    className="w-24"
+                  />
+                </div>
+                <Button
+                  onClick={async () => {
+                    setLoading('invoices')
+                    const count = (document.getElementById('inv-count') as HTMLInputElement).value || '1'
+                    try {
+                      const res = await fetch('/api/mock/invoices', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ count: parseInt(count) })
+                      })
+                      const data = await res.json()
+                      if (data.invoices) {
+                        setRecentInvoices(prev => [...data.invoices, ...prev].slice(0, 10))
+                        setMessage({ type: 'success', text: `✓ ${data.invoices.length} fakturor genererade` })
+                      }
+                    } catch (e) {
+                      setMessage({ type: 'error', text: 'Fel vid generering' })
+                    } finally {
+                      setLoading(null)
                     }
-                  } catch {
-                    setMessage({ type: 'error', text: 'Kunde inte skapa faktura' })
-                  } finally {
-                    setLoading(null)
-                  }
-                }}
-                disabled={loading !== null}
-                className="gap-2"
-              >
-                {loading === 'invoice' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                Skapa 1 kundfaktura
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  setLoading('invoice-batch')
-                  try {
-                    const res = await fetch('/api/mock/invoices', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ count: 5 })
-                    })
-                    const data = await res.json()
-                    if (data.invoices) {
-                      setMessage({ type: 'success', text: `✓ Skapade ${data.invoices.length} fakturor` })
-                    }
-                  } catch {
-                    setMessage({ type: 'error', text: 'Kunde inte skapa fakturor' })
-                  } finally {
-                    setLoading(null)
-                  }
-                }}
-                disabled={loading !== null}
-                className="gap-2"
-              >
-                {loading === 'invoice-batch' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shuffle className="h-4 w-4" />}
-                Skapa 5 kundfakturor
-              </Button>
+                  }}
+                  disabled={loading !== null}
+                  className="gap-2"
+                >
+                  {loading === 'invoices' ? <Loader2 className="animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Generera
+                </Button>
+              </div>
             </CardContent>
           </Card>
+
+          {/* Recent Invoices */}
+          {recentInvoices.length > 0 && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Genererade fakturor</CardTitle>
+                  <CardDescription>Klicka på ögat för att se fakturan</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRecentInvoices([])}
+                >
+                  Rensa
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {recentInvoices.map((inv) => (
+                    <div key={inv.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 flex items-center justify-center rounded bg-background border">
+                          <FileText className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="font-medium">{inv.customerName}</div>
+                          <div className="text-xs text-muted-foreground">{inv.invoiceNumber} • {inv.issueDate}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="font-medium tabular-nums">{new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(inv.amount)}</div>
+                          <div className="text-xs text-muted-foreground">Klar att bokföra</div>
+                        </div>
+
+                        {inv.visualData && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl p-0 overflow-y-auto max-h-[90vh] bg-white border-none shadow-2xl">
+                              <InvoiceDocument data={inv.visualData} />
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
-        {/* Supplier Invoices Tab (kept commented out or minimal if it was there before, but I'll leave it as I saw in my read) */}
       </Tabs>
 
       <div className="flex justify-end pt-8">
@@ -1093,14 +1180,10 @@ export default function SimulatorPage() {
           disabled={loading !== null}
           className="gap-2"
         >
-          {loading === 'clear' ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Trash2 className="h-4 w-4" />
-          )}
-          Återställ data
+          <Trash2 className="h-4 w-4" />
+          Återställ all data
         </Button>
       </div>
-    </div >
+    </div>
   )
 }

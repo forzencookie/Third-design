@@ -8,7 +8,7 @@
  * This file uses those labels to maintain a single source of truth.
  */
 
-import { 
+import {
     TRANSACTION_STATUS_LABELS,
     INVOICE_STATUS_LABELS,
     RECEIPT_STATUS_LABELS,
@@ -55,6 +55,7 @@ export const INVOICE_STATUS_VARIANT: Record<InvoiceStatus, StatusVariant> = {
     "Utkast": "neutral",
     "Förfallen": "error",
     "Makulerad": "neutral",
+    "Bokförd": "violet",
 }
 
 // =============================================================================
@@ -72,6 +73,7 @@ export const RECEIPT_STATUS_VARIANT: Record<ReceiptStatus, StatusVariant> = {
     "Granskning krävs": "error",
     "Behandlad": "success",
     "Avvisad": "error",
+    "Bokförd": "violet",
 }
 
 // =============================================================================
@@ -124,6 +126,7 @@ export const SUPPLIER_INVOICE_STATUS_VARIANT: Record<SupplierInvoiceStatus, Stat
     "Betald": "success",
     "Förfallen": "error",
     "Tvist": "purple",
+    "Bokförd": "violet",
 }
 
 // =============================================================================
@@ -191,10 +194,10 @@ export const MEETING_STATUS_VARIANT: Record<MeetingStatus, StatusVariant> = {
 // Combined Status Type (for StatusBadge component)
 // =============================================================================
 
-export type AppStatus = 
-    | TransactionStatus 
-    | InvoiceStatus 
-    | ReceiptStatus 
+export type AppStatus =
+    | TransactionStatus
+    | InvoiceStatus
+    | ReceiptStatus
     | GeneralStatus
     | SupplierInvoiceStatus
     | StockTransactionType

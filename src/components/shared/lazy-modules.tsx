@@ -134,7 +134,7 @@ export function LazyModule({
     variant?: LoadingVariant
 }) {
     const LoadingComponent = loadingComponents[variant]
-    
+
     return (
         <Suspense fallback={fallback ?? <LoadingComponent />}>
             {children}
@@ -158,7 +158,7 @@ export const LazyTransactionsTable = createLazyComponent(
 // Invoices module
 export const LazyInvoicesTable = createLazyComponent(
     async () => {
-        const { InvoicesTable } = await import('../invoices/invoices-table');
+        const { InvoicesTable } = await import('../revenue/invoices-table');
         return { default: InvoicesTable };
     },
     'table'
@@ -167,7 +167,7 @@ export const LazyInvoicesTable = createLazyComponent(
 // Receipts module
 export const LazyReceiptsTable = createLazyComponent(
     async () => {
-        const { ReceiptsTable } = await import('../invoices/receipts-table');
+        const { ReceiptsTable } = await import('../expenses/receipts-table');
         return { default: ReceiptsTable };
     },
     'table'
@@ -277,8 +277,8 @@ export function preloadModule(importFn: () => Promise<unknown>): void {
  */
 export const dashboardModulePreloaders = {
     transactions: () => import('@/components/transactions'),
-    invoices: () => import('../invoices/invoices-table'),
-    receipts: () => import('../invoices/receipts-table'),
+    invoices: () => import('../revenue/invoices-table'),
+    receipts: () => import('../expenses/receipts-table'),
 } as const
 
 /**
@@ -304,7 +304,7 @@ export function preloadReportsTab(tabId: string): void {
         resultatrakning: reportsModulePreloaders.financialStatements,
         balansrakning: reportsModulePreloaders.financialStatements,
     }
-    
+
     const preloader = preloaders[tabId]
     if (preloader) {
         preloadModule(preloader)
@@ -364,7 +364,7 @@ export function preloadPayrollTab(tabId: string): void {
         egenavgifter: payrollModulePreloaders.egenavgifter,
         delagaruttag: payrollModulePreloaders.delagaruttag,
     }
-    
+
     const preloader = preloaders[tabId]
     if (preloader) {
         preloadModule(preloader)

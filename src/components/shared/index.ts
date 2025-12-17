@@ -1,9 +1,9 @@
 // Shared Utility Components
 export { ErrorBoundary } from "./error-boundary"
-export { 
-  LazyModule, 
-  LazyTransactionsTable, 
-  LazyInvoicesTable, 
+export {
+  LazyModule,
+  LazyTransactionsTable,
+  LazyInvoicesTable,
   LazyReceiptsTable,
   LazyVerifikationerTable,
   LazyJournalCalendar,
@@ -21,4 +21,7 @@ export {
 } from "./lazy-modules"
 export { BulkActionToolbar, useBulkSelection } from "./bulk-action-toolbar"
 export type { BulkAction } from "./bulk-action-toolbar"
-export { TeamMemberCard } from "./team-member-card"
+
+export { AiProcessingState } from "./ai-processing-state"
+export { KanbanBoard, KanbanColumn, KanbanCard } from "./kanban"
+export type { KanbanColumnConfig, KanbanCardProps, KanbanColumnProps, KanbanBoardProps } from "./kanban"

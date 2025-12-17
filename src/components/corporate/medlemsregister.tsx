@@ -53,6 +53,8 @@ import { cn } from "@/lib/utils"
 import { AppStatusBadge } from "@/components/ui/status-badge"
 import { type MembershipStatus, type MembershipChangeType } from "@/lib/status-types"
 import { mockMembers, mockMembershipChanges, type Member, type MembershipChange } from "@/data/ownership"
+import { useVerifications } from "@/hooks/use-verifications"
+import { useToast } from "@/components/ui/toast"
 
 // Default membership fee per type
 const MEMBERSHIP_FEES: Record<Member['membershipType'], number> = {
@@ -83,12 +85,23 @@ const getMembershipChangeTypeLabel = (changeType: MembershipChange['changeType']
 }
 
 export function Medlemsregister() {
-  const [members] = useState<Member[]>(mockMembers)
+  const { addVerification } = useVerifications()
+  const toast = useToast()
+
+  const [members, setMembers] = useState<Member[]>(mockMembers)
   const [changes] = useState<MembershipChange[]>(mockMembershipChanges)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // New Member Form State
+  const [newName, setNewName] = useState("")
+  const [newEmail, setNewEmail] = useState("")
+  const [newPhone, setNewPhone] = useState("")
+  const [payFee, setPayFee] = useState(true) // Pays Annual Fee
+  const [payCapital, setPayCapital] = useState(true) // Pays Initial Capital (Insats)
+  const [capitalAmount, setCapitalAmount] = useState("100") // Default insats
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -97,7 +110,7 @@ export function Medlemsregister() {
     const unpaid = active.filter(m => !m.currentYearFeePaid)
     const totalFees = active.reduce((sum, m) => sum + MEMBERSHIP_FEES[m.membershipType], 0)
     const unpaidFees = unpaid.reduce((sum, m) => sum + MEMBERSHIP_FEES[m.membershipType], 0)
-    
+
     return {
       totalMembers: members.length,
       activeMembers: active.length,
@@ -115,7 +128,7 @@ export function Medlemsregister() {
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      result = result.filter(m => 
+      result = result.filter(m =>
         m.name.toLowerCase().includes(query) ||
         m.email?.toLowerCase().includes(query) ||
         m.memberNumber.toLowerCase().includes(query)
@@ -155,6 +168,67 @@ export function Medlemsregister() {
     } else {
       setSelectedIds(new Set(filteredMembers.map(m => m.id)))
     }
+  }
+
+  const handleAddMember = async () => {
+    if (!newName) {
+      toast.error("Namn saknas", "Ange namn på medlemmen")
+      return
+    }
+
+    // 1. Add to local list
+    const newMember: Member = {
+      id: `m-${Date.now()}`,
+      name: newName,
+      email: newEmail,
+      phone: newPhone,
+      memberNumber: (members.length + 1).toString().padStart(3, '0'),
+      joinDate: new Date().toISOString().split('T')[0],
+      membershipType: 'ordinarie',
+      status: 'aktiv',
+      feesPaid: payFee,
+      currentYearFeePaid: payFee,
+      roles: []
+    }
+    setMembers(prev => [...prev, newMember])
+
+    // 2. Bookkeeping
+    const date = new Date().toISOString().split('T')[0]
+
+    // Capital Contribution (Insats) -> 2083
+    if (payCapital && capitalAmount) {
+      await addVerification({
+        date,
+        description: `Medlemsinsats ${newName}`,
+        sourceType: 'member_capital',
+        rows: [
+          { account: "1930", description: `Inbetalning insats ${newName}`, debit: parseInt(capitalAmount), credit: 0 },
+          { account: "2083", description: `Medlemsinsatser`, debit: 0, credit: parseInt(capitalAmount) }
+        ]
+      })
+    }
+
+    // Annual Fee -> 3890
+    if (payFee) {
+      const fee = MEMBERSHIP_FEES['ordinarie']
+      if (fee > 0) {
+        await addVerification({
+          date,
+          description: `Medlemsavgift ${newName}`,
+          sourceType: 'member_fee',
+          rows: [
+            { account: "1930", description: `Inbetalning avgift ${newName}`, debit: fee, credit: 0 },
+            { account: "3890", description: `Medlemsavgifter`, debit: 0, credit: fee }
+          ]
+        })
+      }
+    }
+
+    toast.success("Medlem tillagd", `${newName} har lagts till och transaktioner har bokförts.`)
+    setShowAddDialog(false)
+    setNewName("")
+    setNewEmail("")
+    setNewPhone("")
   }
 
   return (
@@ -245,39 +319,65 @@ export function Medlemsregister() {
               <DialogHeader>
                 <DialogTitle>Lägg till medlem</DialogTitle>
                 <DialogDescription>
-                  Registrera en ny medlem i föreningen
+                  Registrera en ny medlem och bokför insatser
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label>Namn</Label>
-                  <Input placeholder="För- och efternamn" />
+                  <Input placeholder="För- och efternamn" value={newName} onChange={e => setNewName(e.target.value)} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>E-post</Label>
-                    <Input type="email" placeholder="namn@exempel.se" />
+                    <Input type="email" placeholder="namn@exempel.se" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label>Telefon</Label>
-                    <Input placeholder="070-XXX XX XX" />
+                    <Input placeholder="070-XXX XX XX" value={newPhone} onChange={e => setNewPhone(e.target.value)} />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Adress</Label>
-                  <Input placeholder="Gatuadress, postnummer, ort" />
+
+                <div className="border-t pt-4 space-y-3">
+                  <Label>Bokföring</Label>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="pay-fee" checked={payFee} onCheckedChange={(c) => setPayFee(Boolean(c))} />
+                    <label
+                      htmlFor="pay-fee"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Betala årsavgift (500 kr)
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="pay-capital" checked={payCapital} onCheckedChange={(c) => setPayCapital(Boolean(c))} />
+                      <label
+                        htmlFor="pay-capital"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Betala medlemsinsats
+                      </label>
+                    </div>
+                    {payCapital && (
+                      <Input
+                        type="number"
+                        value={capitalAmount}
+                        onChange={e => setCapitalAmount(e.target.value)}
+                        className="w-32 mt-1"
+                        placeholder="Belopp"
+                      />
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Medlemstyp</Label>
-                  <Input placeholder="Ordinarie, stödmedlem..." />
-                </div>
+
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                   Avbryt
                 </Button>
-                <Button onClick={() => setShowAddDialog(false)}>
-                  Spara
+                <Button onClick={handleAddMember}>
+                  Spara & Bokför
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -311,7 +411,7 @@ export function Medlemsregister() {
           </thead>
           <tbody>
             {filteredMembers.map((member) => (
-              <tr 
+              <tr
                 key={member.id}
                 className={cn(
                   "border-b border-border/40 hover:bg-muted/30 transition-colors",
@@ -325,93 +425,93 @@ export function Medlemsregister() {
                   />
                 </td>
                 <td className="px-4 py-3">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          {member.name}
-                          {member.roles.length > 0 && (
-                            <Badge variant="outline" className="text-xs">
-                              {member.roles[0]}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          #{member.memberNumber}
-                        </div>
+                  <div>
+                    <div className="font-medium flex items-center gap-2">
+                      {member.name}
+                      {member.roles.length > 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          {member.roles[0]}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      #{member.memberNumber}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="text-sm space-y-0.5">
+                    {member.email && (
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Mail className="h-3 w-3" />
+                        {member.email}
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm space-y-0.5">
-                        {member.email && (
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Mail className="h-3 w-3" />
-                            {member.email}
-                          </div>
-                        )}
-                        {member.phone && (
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Phone className="h-3 w-3" />
-                            {member.phone}
-                          </div>
-                        )}
+                    )}
+                    {member.phone && (
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Phone className="h-3 w-3" />
+                        {member.phone}
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={member.membershipType === 'hedersmedlem' ? 'default' : 'secondary'}>
-                        {member.membershipType === 'hedersmedlem' && <Award className="h-3 w-3 mr-1" />}
-                        {getMembershipTypeLabel(member.membershipType)}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {formatDate(member.joinDate)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div>
-                        <div className="tabular-nums text-sm">
-                          {formatCurrency(MEMBERSHIP_FEES[member.membershipType])}
-                        </div>
-                        {member.membershipType !== 'hedersmedlem' && (
-                          member.currentYearFeePaid ? (
-                            <span className="text-xs text-green-600 dark:text-green-500/70">Betald</span>
-                          ) : (
-                            <span className="text-xs text-amber-600">Obetald</span>
-                          )
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <AppStatusBadge status={getMembershipStatusLabel(member.status)} showIcon />
-                    </td>
-                    <td className="px-4 py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>Visa profil</DropdownMenuItem>
-                          <DropdownMenuItem>Redigera</DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Mail className="h-4 w-4 mr-2" />
-                            Skicka e-post
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {!member.currentYearFeePaid && member.membershipType !== 'hedersmedlem' && (
-                            <DropdownMenuItem>Skicka betalningspåminnelse</DropdownMenuItem>
-                          )}
-                          {member.status === 'aktiv' && (
-                            <DropdownMenuItem>Sätt som vilande</DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">Avsluta medlemskap</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-        </DataTableRaw>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <Badge variant={member.membershipType === 'hedersmedlem' ? 'default' : 'secondary'}>
+                    {member.membershipType === 'hedersmedlem' && <Award className="h-3 w-3 mr-1" />}
+                    {getMembershipTypeLabel(member.membershipType)}
+                  </Badge>
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  {formatDate(member.joinDate)}
+                </td>
+                <td className="px-4 py-3">
+                  <div>
+                    <div className="tabular-nums text-sm">
+                      {formatCurrency(MEMBERSHIP_FEES[member.membershipType])}
+                    </div>
+                    {member.membershipType !== 'hedersmedlem' && (
+                      member.currentYearFeePaid ? (
+                        <span className="text-xs text-green-600 dark:text-green-500/70">Betald</span>
+                      ) : (
+                        <span className="text-xs text-amber-600">Obetald</span>
+                      )
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <AppStatusBadge status={getMembershipStatusLabel(member.status)} showIcon />
+                </td>
+                <td className="px-4 py-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>Visa profil</DropdownMenuItem>
+                      <DropdownMenuItem>Redigera</DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Skicka e-post
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {!member.currentYearFeePaid && member.membershipType !== 'hedersmedlem' && (
+                        <DropdownMenuItem>Skicka betalningspåminnelse</DropdownMenuItem>
+                      )}
+                      {member.status === 'aktiv' && (
+                        <DropdownMenuItem>Sätt som vilande</DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-red-600">Avsluta medlemskap</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </DataTableRaw>
 
       {/* Recent Changes */}
       <Card>
@@ -426,17 +526,18 @@ export function Medlemsregister() {
             {changes.map((change) => {
               const changeLabel = getMembershipChangeTypeLabel(change.changeType)
               return (
-              <div key={change.id} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
-                <AppStatusBadge status={changeLabel} showIcon />
-                <div className="flex-1">
-                  <p className="font-medium text-sm">{change.memberName}</p>
-                  <p className="text-xs text-muted-foreground">{change.details}</p>
+                <div key={change.id} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
+                  <AppStatusBadge status={changeLabel} showIcon />
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{change.memberName}</p>
+                    <p className="text-xs text-muted-foreground">{change.details}</p>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDate(change.date)}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {formatDate(change.date)}
-                </div>
-              </div>
-            )})}
+              )
+            })}
           </div>
         </CardContent>
       </Card>

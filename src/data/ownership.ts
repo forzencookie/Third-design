@@ -196,6 +196,11 @@ export const mockPartnerWithdrawals: PartnerWithdrawal[] = [
   },
 ];
 
+export const PARTNER_ACCOUNTS: Record<string, { capital: string, withdrawal: string, deposit: string }> = {
+  'p-1': { capital: '2010', withdrawal: '2013', deposit: '2018' },
+  'p-2': { capital: '2020', withdrawal: '2023', deposit: '2028' },
+}
+
 // ============================================
 // Medlemsregister (Members) - Förening only
 // ============================================
@@ -416,6 +421,9 @@ export interface GeneralMeetingDecision {
   title: string;
   description?: string;
   decision: string;
+  type?: 'dividend' | 'board_election' | 'auditor_election' | 'other';
+  amount?: number;
+  booked?: boolean;
   votingResult?: {
     for: number;
     against: number;
@@ -437,11 +445,18 @@ export const mockGeneralMeetings: GeneralMeeting[] = [
     chairperson: 'Anna Andersson',
     secretary: 'Erik Eriksson',
     decisions: [
-      { id: 'gmd-1', title: 'Fastställande av resultat- och balansräkning', decision: 'Stämman fastställde resultat- och balansräkningen för 2023' },
-      { id: 'gmd-2', title: 'Disposition av vinst', decision: 'Stämman beslutade att dela ut 120 000 kr till aktieägarna' },
-      { id: 'gmd-3', title: 'Ansvarsfrihet för styrelsen', decision: 'Stämman beviljade styrelsen ansvarsfrihet' },
-      { id: 'gmd-4', title: 'Val av styrelse', decision: 'Anna Andersson och Erik Eriksson omvaldes till styrelsen' },
-      { id: 'gmd-5', title: 'Val av revisor', decision: 'Revisionsbyrån AB omvaldes som revisor' },
+      { id: 'gmd-1', title: 'Fastställande av resultat- och balansräkning', decision: 'Stämman fastställde resultat- och balansräkningen för 2023', type: 'other' },
+      {
+        id: 'gmd-2',
+        title: 'Disposition av vinst',
+        decision: 'Stämman beslutade att dela ut 120 000 kr till aktieägarna',
+        type: 'dividend',
+        amount: 120000,
+        booked: false
+      },
+      { id: 'gmd-3', title: 'Ansvarsfrihet för styrelsen', decision: 'Stämman beviljade styrelsen ansvarsfrihet', type: 'other' },
+      { id: 'gmd-4', title: 'Val av styrelse', decision: 'Anna Andersson och Erik Eriksson omvaldes till styrelsen', type: 'board_election' },
+      { id: 'gmd-5', title: 'Val av revisor', decision: 'Revisionsbyrån AB omvaldes som revisor', type: 'auditor_election' },
     ],
     status: 'protokoll signerat',
   },
@@ -609,7 +624,7 @@ export interface SupplierInvoice {
   vatAmount: number;
   totalAmount: number;
   currency: 'SEK' | 'EUR' | 'USD';
-  status: 'mottagen' | 'attesterad' | 'betald' | 'förfallen' | 'tvist';
+  status: 'mottagen' | 'attesterad' | 'betald' | 'förfallen' | 'tvist' | 'bokförd';
   paymentDate?: string;
   category?: string;
   accountNumber?: string;
@@ -621,6 +636,94 @@ export interface SupplierInvoice {
   plusgiro?: string;
 }
 
+// Source for Ingående moms (input VAT)
 export const mockSupplierInvoices: SupplierInvoice[] = [
-  // Empty array to start fresh
+  {
+    id: 'sf-001',
+    invoiceNumber: 'F2024-4521',
+    supplierName: 'Kontorskompaniet AB',
+    supplierOrgNumber: '556123-4567',
+    invoiceDate: '2024-10-05',
+    dueDate: '2024-11-05',
+    amount: 8000,        // Net amount
+    vatAmount: 2000,     // 25% VAT
+    totalAmount: 10000,
+    currency: 'SEK',
+    status: 'betald',
+    category: 'Kontorsmaterial',
+    accountNumber: '5410',
+  },
+  {
+    id: 'sf-002',
+    invoiceNumber: 'INV-87654',
+    supplierName: 'IT Solutions Sweden AB',
+    supplierOrgNumber: '556789-0123',
+    invoiceDate: '2024-10-20',
+    dueDate: '2024-11-20',
+    amount: 12000,
+    vatAmount: 3000,     // 25% VAT
+    totalAmount: 15000,
+    currency: 'SEK',
+    status: 'betald',
+    category: 'IT-tjänster',
+    accountNumber: '6540',
+  },
+  {
+    id: 'sf-003',
+    invoiceNumber: 'R-2024-0892',
+    supplierName: 'Städservice Stockholm AB',
+    invoiceDate: '2024-11-01',
+    dueDate: '2024-12-01',
+    amount: 4000,
+    vatAmount: 1000,     // 25% VAT
+    totalAmount: 5000,
+    currency: 'SEK',
+    status: 'bokförd',
+    category: 'Lokalkostnader',
+    accountNumber: '5050',
+  },
+  {
+    id: 'sf-004',
+    invoiceNumber: 'TEL-2024-11',
+    supplierName: 'Telia Company AB',
+    supplierOrgNumber: '556103-4249',
+    invoiceDate: '2024-11-10',
+    dueDate: '2024-12-10',
+    amount: 2400,
+    vatAmount: 600,      // 25% VAT
+    totalAmount: 3000,
+    currency: 'SEK',
+    status: 'attesterad',
+    category: 'Telefon',
+    accountNumber: '6212',
+  },
+  {
+    id: 'sf-005',
+    invoiceNumber: 'AZ-SW-2024-12',
+    supplierName: 'Amazon Web Services',
+    invoiceDate: '2024-12-01',
+    dueDate: '2025-01-01',
+    amount: 6400,
+    vatAmount: 1600,     // 25% VAT
+    totalAmount: 8000,
+    currency: 'SEK',
+    status: 'mottagen',
+    category: 'IT-infrastruktur',
+    accountNumber: '6540',
+  },
+  {
+    id: 'sf-006',
+    invoiceNumber: 'HY-2024-Q4',
+    supplierName: 'Fastighets AB Centrum',
+    supplierOrgNumber: '556456-7890',
+    invoiceDate: '2024-12-01',
+    dueDate: '2024-12-31',
+    amount: 20000,
+    vatAmount: 5000,     // 25% VAT
+    totalAmount: 25000,
+    currency: 'SEK',
+    status: 'attesterad',
+    category: 'Lokalhyra',
+    accountNumber: '5010',
+  },
 ];

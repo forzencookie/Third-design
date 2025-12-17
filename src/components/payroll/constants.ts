@@ -2,13 +2,14 @@
 // Payroll - Shared Constants & Data
 // ============================================
 
-import { 
-    FileText, 
-    Send, 
+import {
+    FileText,
+    Send,
     DollarSign,
     Percent,
     Users,
-    type LucideIcon 
+    Car,
+    type LucideIcon
 } from "lucide-react"
 import type { FeatureKey } from "@/lib/company-types"
 
@@ -34,7 +35,9 @@ export interface PayrollTabConfig {
 }
 
 export const allTabs: PayrollTabConfig[] = [
-    { id: "lonebesked", label: "Lönebesked", icon: FileText, feature: 'lonebesked' },
+    { id: "lonebesked", label: "Lönekörning", icon: FileText, feature: 'lonebesked' },
+    { id: "resor", label: "Resor & Körjournal", icon: Car, feature: null },
+    { id: "team", label: "Team & Rapportering", icon: Users, feature: null }, // Team tab
     { id: "agi", label: "AGI", icon: Send, feature: 'agi' },
     { id: "utdelning", label: "Utdelning", icon: DollarSign, feature: 'utdelning' },
     { id: "egenavgifter", label: "Egenavgifter", icon: Percent, feature: 'egenavgifter' },

@@ -27,3 +27,7 @@ export { ArsredovisningContent } from "./arsredovisning-content"
 export { ArsbokslutContent } from "./arsbokslut-content"
 export { ForetagsstatistikContent } from "./foretagsstatistik-content"
 export { ResultatrakningContent, BalansrakningContent } from "./financial-statements"
+
+// VAT Declaration Components
+export { MomsDetailDialog } from "./moms-detail-dialog"
+export { MomsPreview } from "./moms-preview"

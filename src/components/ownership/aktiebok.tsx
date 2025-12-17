@@ -48,6 +48,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { AppStatusBadge } from "@/components/ui/status-badge"
 import { type StockTransactionType } from "@/lib/status-types"
@@ -66,16 +73,30 @@ import {
   DataTableRow,
   DataTableCell
 } from "@/components/ui/data-table"
+import { useVerifications } from "@/hooks/use-verifications"
+import { useToast } from "@/components/ui/toast"
+import { useTextMode } from "@/providers/text-mode-provider"
 
 export function Aktiebok() {
-  const [shareholders] = useState<Shareholder[]>(mockShareholders)
-  const [transactions] = useState<ShareTransaction[]>(mockShareTransactions)
+  const { addVerification } = useVerifications()
+  const toast = useToast()
+  const { text } = useTextMode()
+  const [shareholders, setShareholders] = useState<Shareholder[]>(mockShareholders)
+  const [transactions, setTransactions] = useState<ShareTransaction[]>(mockShareTransactions)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [activeTab, setActiveTab] = useState<'owners' | 'transactions'>('owners')
-  const [selectedShareholders, setSelectedShareholders] = useState<Set<number>>(new Set())
-  const [selectedTransactions, setSelectedTransactions] = useState<Set<number>>(new Set())
+  const [selectedShareholders, setSelectedShareholders] = useState<Set<string>>(new Set())
+  const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set())
+
+  // Form State
+  const [txType, setTxType] = useState<ShareTransaction['type']>('nyemission')
+  const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0])
+  const [txShares, setTxShares] = useState("")
+  const [txPrice, setTxPrice] = useState("")
+  const [txTo, setTxTo] = useState("")
+  const [txFrom, setTxFrom] = useState("")
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -131,7 +152,7 @@ export function Aktiebok() {
   }
 
   // Toggle shareholder selection
-  const toggleShareholder = (id: number) => {
+  const toggleShareholder = (id: string) => {
     setSelectedShareholders(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -149,7 +170,7 @@ export function Aktiebok() {
   }
 
   // Toggle transaction selection
-  const toggleTransaction = (id: number) => {
+  const toggleTransaction = (id: string) => {
     setSelectedTransactions(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -166,27 +187,112 @@ export function Aktiebok() {
     }
   }
 
+  const handleSaveTransaction = async () => {
+    if (!txTo || !txShares || !txPrice) {
+      toast.error("Uppgifter saknas", "Fyll i alla obligatoriska fält.")
+      return
+    }
+
+    const shares = parseInt(txShares)
+    const price = parseFloat(txPrice)
+    const total = shares * price
+
+    const newTx: ShareTransaction = {
+      id: `st-${Date.now()}`,
+      date: txDate,
+      type: txType,
+      fromShareholder: txType === 'nyemission' ? undefined : txFrom,
+      toShareholder: txTo,
+      shares: shares,
+      pricePerShare: price,
+      totalPrice: total,
+      shareClass: 'stamaktier'
+    }
+
+    // Update local state
+    setTransactions(prev => [newTx, ...prev])
+
+    // Logic to update shareholders based on transaction
+    // (Simplified: assuming new shareholder if not exists, or update existing)
+    if (txType === 'nyemission') {
+      // Add shares to 'toShareholder'
+      setShareholders(prev => {
+        const exists = prev.find(s => s.name === txTo)
+        if (exists) {
+          return prev.map(s => s.name === txTo ? { ...s, shares: s.shares + shares, votes: s.votes + shares, acquisitionPrice: s.acquisitionPrice + total } : s)
+        } else {
+          return [...prev, {
+            id: `sh-${Date.now()}`,
+            name: txTo,
+            type: 'person', // Default
+            shares: shares,
+            shareClass: 'stamaktier',
+            ownershipPercentage: 0, // Needs re-calc of all
+            acquisitionDate: txDate,
+            acquisitionPrice: total,
+            votes: shares,
+            votesPercentage: 0
+          }]
+        }
+      })
+
+      // Ledger Entry for Nyemission
+      await addVerification({
+        date: txDate,
+        description: `Nyemission ${shares} aktier till ${txTo}`,
+        sourceType: 'equity_issue',
+        rows: [
+          { account: "1930", description: `Inbetalning nyemission ${txTo}`, debit: total, credit: 0 },
+          { account: "2081", description: `Aktiekapital`, debit: 0, credit: total } // Simplified: All to share capital, usually split with premium reserve
+        ]
+      })
+
+      toast.success("Nyemission registrerad", "Transaktionen och verifikatet har skapats.")
+
+    } else if (txType === 'köp' || txType === 'försäljning') {
+      // Transfer logic
+      setShareholders(prev => {
+        return prev.map(s => {
+          if (s.name === txFrom) {
+            return { ...s, shares: s.shares - shares, votes: s.votes - shares } // Simplified: assumes simple subtraction
+          }
+          if (s.name === txTo) {
+            return { ...s, shares: s.shares + shares, votes: s.votes + shares }
+          }
+          return s
+        })
+      })
+      toast.success("Överlåtelse registrerad", "Ägarförhållandena har uppdaterats.")
+    }
+
+    setShowAddDialog(false)
+    setTxTo("")
+    setTxFrom("")
+    setTxShares("")
+    setTxPrice("")
+  }
+
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
       <StatCardGrid columns={4}>
         <StatCard
-          label="Totalt antal aktier"
+          label={text.owners.totalShares}
           value={stats.totalShares.toLocaleString('sv-SE')}
           icon={FileText}
         />
         <StatCard
-          label="Antal ägare"
+          label={text.owners.shareholderCount}
           value={stats.shareholderCount.toString()}
           icon={Users}
         />
         <StatCard
-          label="Totalt röstetal"
+          label={text.owners.totalVotes}
           value={stats.totalVotes.toLocaleString('sv-SE')}
           icon={Vote}
         />
         <StatCard
-          label="Totalt anskaffningsvärde"
+          label={text.owners.shareValue}
           value={formatCurrency(stats.totalValue)}
           icon={TrendingUp}
         />
@@ -195,11 +301,11 @@ export function Aktiebok() {
       {/* Shareholders Table */}
       {activeTab === 'owners' && (
         <DataTable
-          title="Aktieägare"
+          title={text.owners.shareholdersTable}
           headerActions={
             <>
               <SearchBar
-                placeholder="Sök ägare..."
+                placeholder={text.owners.searchOwners}
                 value={searchQuery}
                 onChange={setSearchQuery}
               />
@@ -211,7 +317,7 @@ export function Aktiebok() {
                 onClick={() => setActiveTab('transactions')}
               >
                 <ArrowRightLeft className="h-4 w-4 mr-2" />
-                Transaktioner
+                {text.owners.transactions}
               </Button>
 
               <DropdownMenu>
@@ -222,11 +328,11 @@ export function Aktiebok() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setShowAddDialog(true)}>
+                  <DropdownMenuItem onClick={() => { setTxType('nyemission'); setShowAddDialog(true); }}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Lägg till ägare
+                    Nyemission
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setTxType('köp'); setShowAddDialog(true); }}>
                     <ArrowRightLeft className="h-4 w-4 mr-2" />
                     Registrera överlåtelse
                   </DropdownMenuItem>
@@ -342,11 +448,11 @@ export function Aktiebok() {
       {/* Transactions Table */}
       {activeTab === 'transactions' && (
         <DataTable
-          title="Aktietransaktioner"
+          title={text.owners.transactionsTable}
           headerActions={
             <>
               <SearchBar
-                placeholder="Sök transaktion..."
+                placeholder={text.owners.searchTransactions}
                 value={searchQuery}
                 onChange={setSearchQuery}
               />
@@ -369,9 +475,9 @@ export function Aktiebok() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setShowAddDialog(true)}>
+                  <DropdownMenuItem onClick={() => { setTxType('nyemission'); setShowAddDialog(true); }}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Ny transaktion
+                    Nyemission
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
@@ -458,78 +564,92 @@ export function Aktiebok() {
         </DataTable>
       )}
 
-      {filteredShareholders.length === 0 && activeTab === 'owners' && (
-        <div className="text-center py-12 text-muted-foreground">
-          <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p>Inga aktieägare hittades</p>
-        </div>
-      )}
-
       {/* Add Owner/Transaction Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {activeTab === 'owners' ? 'Lägg till aktieägare' : 'Registrera aktietransaktion'}
+              Registrera {txType === 'nyemission' ? 'Nyemission' : 'Överlåtelse'}
             </DialogTitle>
             <DialogDescription>
-              {activeTab === 'owners'
-                ? 'Lägg till en ny ägare i aktieboken'
-                : 'Registrera köp, försäljning eller annan aktietransaktion'
-              }
+              {txType === 'nyemission'
+                ? 'Registrera nya aktier och betalning.'
+                : 'Registrera ägarbyte mellan aktieägare.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {activeTab === 'owners' ? (
-              <>
-                <div className="space-y-2">
-                  <Label>Namn</Label>
-                  <Input placeholder="För- och efternamn eller företagsnamn" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Person-/Organisationsnummer</Label>
-                  <Input placeholder="XXXXXX-XXXX" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Antal aktier</Label>
-                  <Input type="number" placeholder="0" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Aktieslag</Label>
-                  <Input placeholder="Stamaktier" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Anskaffningsdatum</Label>
-                  <Input type="date" />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label>Transaktionstyp</Label>
-                  <Input placeholder="Köp, försäljning, nyemission..." />
-                </div>
-                <div className="space-y-2">
-                  <Label>Datum</Label>
-                  <Input type="date" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Antal aktier</Label>
-                  <Input type="number" placeholder="0" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Pris per aktie (kr)</Label>
-                  <Input type="number" placeholder="0" />
-                </div>
-              </>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Transaktionstyp</Label>
+                <Select value={txType} onValueChange={(v: ShareTransaction['type']) => setTxType(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nyemission">Nyemission</SelectItem>
+                    <SelectItem value="köp">Köp/Försäljning</SelectItem>
+                    <SelectItem value="gåva">Gåva</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Datum</Label>
+                <Input type="date" value={txDate} onChange={e => setTxDate(e.target.value)} />
+              </div>
+            </div>
+
+            {txType !== 'nyemission' && (
+              <div className="space-y-2">
+                <Label>Från (Säljare)</Label>
+                <Select value={txFrom} onValueChange={setTxFrom}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Välj säljare" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shareholders.map(s => (
+                      <SelectItem key={s.id} value={s.name}>{s.name} ({s.shares} aktier)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
+
+            <div className="space-y-2">
+              <Label>{txType === 'nyemission' ? 'Till (Tecknare)' : 'Till (Köpare)'}</Label>
+              {txType === 'nyemission' ? (
+                <Input value={txTo} onChange={e => setTxTo(e.target.value)} placeholder="Namn på ny ägare..." />
+              ) : (
+                <Select value={txTo} onValueChange={setTxTo}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Välj köpare" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shareholders.map(s => (
+                      <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                    ))}
+                    {/* In real app, allow adding new owner inline or assume existing */}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Antal aktier</Label>
+                <Input type="number" value={txShares} onChange={e => setTxShares(e.target.value)} placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label>Pris per aktie (kr)</Label>
+                <Input type="number" value={txPrice} onChange={e => setTxPrice(e.target.value)} placeholder="0" />
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Avbryt
             </Button>
-            <Button onClick={() => setShowAddDialog(false)}>
-              Spara
+            <Button onClick={handleSaveTransaction}>
+              Spara transaktion
             </Button>
           </DialogFooter>
         </DialogContent>

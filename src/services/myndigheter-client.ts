@@ -85,7 +85,7 @@ export interface StoredSubmission {
 
 function storeSubmission(submission: StoredSubmission): void {
   if (typeof window === 'undefined') return
-  
+
   const stored = localStorage.getItem(SUBMISSIONS_KEY)
   const submissions: StoredSubmission[] = stored ? JSON.parse(stored) : []
   submissions.unshift(submission)
@@ -129,7 +129,7 @@ export async function submitToSkatteverket(
   data: Record<string, unknown>
 ): Promise<SkatteverketResponse> {
   try {
-    const response = await fetch('/api/simulator/skatteverket', {
+    const response = await fetch('/api/skatteverket', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ documentType, data }),
@@ -194,7 +194,7 @@ export async function submitToBolagsverket(
   data: Record<string, unknown>
 ): Promise<BolagsverketResponse> {
   try {
-    const response = await fetch('/api/simulator/bolagsverket', {
+    const response = await fetch('/api/bolagsverket', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ documentType, data }),

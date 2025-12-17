@@ -17,7 +17,7 @@ import { AppStatusBadge } from "@/components/ui/status-badge"
 import { useToast } from "@/components/ui/toast"
 
 interface Payslip {
-    id: number
+    id: string | number
     employee: string
     period: string
     grossSalary: number
@@ -30,7 +30,7 @@ interface PayslipDetailsDialogProps {
     payslip: Payslip | null
     open: boolean
     onOpenChange: (open: boolean) => void
-    onSend?: (id: number) => void
+    onSend?: (id: string | number) => void
 }
 
 export function PayslipDetailsDialog({
@@ -53,7 +53,7 @@ export function PayslipDetailsDialog({
                 <DialogHeader>
                     <DialogTitle>Lönespecifikation</DialogTitle>
                 </DialogHeader>
-                
+
                 <div className="space-y-4 py-4">
                     {/* Employee & Period Header */}
                     <div className="flex items-center gap-4 bg-muted/40 p-4 rounded-lg">

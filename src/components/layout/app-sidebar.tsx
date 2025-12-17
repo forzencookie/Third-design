@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Sparkles, type LucideIcon } from "lucide-react"
+import { Sparkles, PanelLeft, type LucideIcon } from "lucide-react"
 
 import { NavMain, NavSettings, NavUser } from "./sidebar-nav"
 import { AdaptiveNavMain } from "./adaptive-nav"
@@ -15,6 +15,8 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuAction,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { SettingsDialog } from "../settings"
 
@@ -27,7 +29,7 @@ import {
   navSettings
 } from "@/data/navigation"
 
-interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+interface AppSidebarProps extends Omit<React.ComponentProps<typeof Sidebar>, "variant"> {
   /** 'default' shows full navigation, 'minimal' shows empty sidebar with custom header */
   variant?: "default" | "minimal"
   /** Custom header config for minimal variant */
@@ -45,6 +47,7 @@ export function AppSidebar({
   ...props
 }: AppSidebarProps) {
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const { state, toggleSidebar } = useSidebar()
 
   // Default minimal header for AI workspace style
   const header = minimalHeader ?? {
@@ -57,11 +60,20 @@ export function AppSidebar({
 
   if (variant === "minimal") {
     return (
-      <Sidebar collapsible="icon" {...props}>
+      <Sidebar {...props} collapsible="icon">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" className="cursor-default hover:bg-transparent">
+              <SidebarMenuButton
+                size="lg"
+                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-default hover:bg-transparent"
+                onClick={() => {
+                  // If collapsed, clicking anywhere on the button (the logo) expands it
+                  if (state === "collapsed") {
+                    toggleSidebar()
+                  }
+                }}
+              >
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
                   <HeaderIcon className={`size-4 ${header.iconClassName ?? "text-purple-500"}`} />
                 </div>
@@ -72,6 +84,17 @@ export function AppSidebar({
                   )}
                 </div>
               </SidebarMenuButton>
+              <SidebarMenuAction
+                showOnHover
+                className="cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleSidebar()
+                }}
+              >
+                <PanelLeft />
+                <span className="sr-only">Toggle Sidebar</span>
+              </SidebarMenuAction>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>

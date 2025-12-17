@@ -36,6 +36,8 @@ export interface SettingsFormFieldProps {
     type?: string
     placeholder?: string
     defaultValue?: string
+    value?: string
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void
     className?: string
 }
 
@@ -45,16 +47,20 @@ export function SettingsFormField({
     type = "text",
     placeholder,
     defaultValue,
+    value,
+    onChange,
     className,
 }: SettingsFormFieldProps) {
     return (
         <div className={cn("grid gap-2", className)}>
             <Label htmlFor={id}>{label}</Label>
-            <Input 
-                id={id} 
+            <Input
+                id={id}
                 type={type}
-                placeholder={placeholder} 
+                placeholder={placeholder}
                 defaultValue={defaultValue}
+                value={value}
+                onChange={onChange}
             />
         </div>
     )
@@ -69,7 +75,7 @@ export interface SettingsSaveButtonProps {
     disabled?: boolean
 }
 
-export function SettingsSaveButton({ 
+export function SettingsSaveButton({
     label = "Spara ändringar",
     onClick,
     disabled,
@@ -109,8 +115,8 @@ export function SettingsToggle({
                     <p className="text-xs text-muted-foreground">{description}</p>
                 )}
             </div>
-            <Switch 
-                checked={checked} 
+            <Switch
+                checked={checked}
                 onCheckedChange={onCheckedChange}
                 disabled={disabled}
             />
@@ -149,8 +155,8 @@ export function SettingsToggleItem({
                     )}
                 </div>
             </div>
-            <Switch 
-                checked={checked} 
+            <Switch
+                checked={checked}
                 onCheckedChange={onCheckedChange}
                 disabled={disabled}
             />
@@ -182,8 +188,8 @@ export function IntegrationCard({
                 <p className="font-medium text-sm">{name}</p>
                 <p className="text-xs text-muted-foreground">{description}</p>
             </div>
-            <Button 
-                variant={connected ? "outline" : "default"} 
+            <Button
+                variant={connected ? "outline" : "default"}
                 size="sm"
                 onClick={connected ? onDisconnect : onConnect}
             >
@@ -291,9 +297,9 @@ export function SessionCard({
                 </div>
             </div>
             {!isCurrent && onLogout && (
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
+                <Button
+                    variant="ghost"
+                    size="sm"
                     className="text-destructive hover:text-destructive"
                     onClick={onLogout}
                 >
@@ -415,9 +421,9 @@ export interface PropertyRowProps {
     showBorder?: boolean
 }
 
-export function PropertyRow({ 
-    icon: Icon, 
-    label, 
+export function PropertyRow({
+    icon: Icon,
+    label,
     children,
     showBorder = true,
 }: PropertyRowProps) {

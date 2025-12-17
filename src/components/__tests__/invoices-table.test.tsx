@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { InvoicesTable } from "../invoices/invoices-table"
+import { InvoicesTable } from "../revenue/invoices-table"
 import { INVOICE_STATUSES } from "@/lib/status-types"
 
 // Mock ResizeObserver
@@ -14,14 +14,14 @@ describe("InvoicesTable", () => {
     describe("rendering", () => {
         it("should render the invoices table", () => {
             render(<InvoicesTable />)
-            
+
             // Check for table headers or content
             expect(screen.getByRole("table")).toBeInTheDocument()
         })
 
         it("should render invoice data", () => {
             render(<InvoicesTable />)
-            
+
             // Check for known invoice customers from default data
             expect(screen.getByText("Acme Corp")).toBeInTheDocument()
             expect(screen.getByText("Globex Inc.")).toBeInTheDocument()
@@ -29,7 +29,7 @@ describe("InvoicesTable", () => {
 
         it("should render invoice amounts", () => {
             render(<InvoicesTable />)
-            
+
             expect(screen.getByText("12,500.00 kr")).toBeInTheDocument()
         })
     })
@@ -37,17 +37,17 @@ describe("InvoicesTable", () => {
     describe("search functionality", () => {
         it("should render search input", () => {
             render(<InvoicesTable />)
-            
+
             expect(screen.getByPlaceholderText(/sök/i)).toBeInTheDocument()
         })
 
         it("should filter invoices by customer name", async () => {
             const user = userEvent.setup()
             render(<InvoicesTable />)
-            
+
             const searchInput = screen.getByPlaceholderText(/sök/i)
             await user.type(searchInput, "Acme")
-            
+
             expect(screen.getByText("Acme Corp")).toBeInTheDocument()
             expect(screen.queryByText("Globex Inc.")).not.toBeInTheDocument()
         })
@@ -55,10 +55,10 @@ describe("InvoicesTable", () => {
         it("should filter invoices by invoice ID", async () => {
             const user = userEvent.setup()
             render(<InvoicesTable />)
-            
+
             const searchInput = screen.getByPlaceholderText(/sök/i)
             await user.type(searchInput, "INV-2024-001")
-            
+
             expect(screen.getByText("Acme Corp")).toBeInTheDocument()
         })
     })
@@ -66,7 +66,7 @@ describe("InvoicesTable", () => {
     describe("status badges", () => {
         it("should render status badges", () => {
             render(<InvoicesTable />)
-            
+
             // Use Swedish status strings from INVOICE_STATUSES
             const statusValues = Object.values(INVOICE_STATUSES)
             const statusRegex = new RegExp(statusValues.join("|"), "i")
@@ -77,7 +77,7 @@ describe("InvoicesTable", () => {
     describe("accessibility", () => {
         it("should have proper table structure", () => {
             render(<InvoicesTable />)
-            
+
             expect(screen.getByRole("table")).toBeInTheDocument()
         })
     })

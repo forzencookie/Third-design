@@ -107,7 +107,7 @@ export function TransactionsTable({
 
         // Call the parent callback with full booking data
         if (onTransactionBooked) {
-            onTransactionBooked(bookingData.transactionId, bookingData)
+            onTransactionBooked(bookingData.entityId, bookingData)
         }
 
         // Close dialog and clear selection
@@ -337,7 +337,16 @@ export function TransactionsTable({
             <BookingDialog
                 open={bookingDialogOpen}
                 onOpenChange={setBookingDialogOpen}
-                transaction={selectedTransactions[0] || null}
+                entity={selectedTransactions[0] ? {
+                    id: selectedTransactions[0].id,
+                    name: selectedTransactions[0].name,
+                    date: selectedTransactions[0].date,
+                    amount: selectedTransactions[0].amount,
+                    type: 'transaction',
+                    status: selectedTransactions[0].status,
+                    account: selectedTransactions[0].account,
+                    category: selectedTransactions[0].category
+                } : null}
                 onBook={handleBook}
             />
         </div>

@@ -34,10 +34,10 @@ const AVG_CHARS_PER_TOKEN = 4 // Rough estimate - actual varies by language/cont
 function estimateTokenCount(text: string): number {
     // For non-ASCII heavy text, use a more conservative estimate
     const nonAsciiRatio = (text.match(/[^\x00-\x7F]/g) || []).length / Math.max(text.length, 1)
-    
+
     // If >20% non-ASCII, use smaller chars-per-token ratio (more conservative)
     const charsPerToken = nonAsciiRatio > 0.2 ? 2.5 : AVG_CHARS_PER_TOKEN
-    
+
     return Math.ceil(text.length / charsPerToken)
 }
 
@@ -46,18 +46,18 @@ function estimateTokenCount(text: string): number {
  */
 function validateTokenLimits(messages: Array<{ role: string; content: string }>): { valid: boolean; error?: string } {
     let totalTokens = 0
-    
+
     for (const message of messages) {
         totalTokens += estimateTokenCount(message.content)
     }
-    
+
     if (totalTokens > MAX_INPUT_TOKENS) {
         return {
             valid: false,
             error: `Message content too long. Please reduce your message size. (Estimated ${totalTokens} tokens, max ${MAX_INPUT_TOKENS})`
         }
     }
-    
+
     return { valid: true }
 }
 
@@ -69,7 +69,7 @@ function validateRequestOrigin(request: NextRequest): boolean {
     const origin = request.headers.get('origin')
     const referer = request.headers.get('referer')
     const host = request.headers.get('host')
-    
+
     // Allow requests without origin (non-browser clients, same-origin in some cases)
     // But require at least one identifier
     if (!origin && !referer) {
@@ -85,32 +85,32 @@ function validateRequestOrigin(request: NextRequest): boolean {
         // In production, reject requests without any origin info
         return false
     }
-    
+
     // Extract hostname from origin or referer
     const requestOrigin = origin || (referer ? new URL(referer).origin : null)
     if (!requestOrigin) {
         return process.env.NODE_ENV === 'development'
     }
-    
+
     try {
         const originHost = new URL(requestOrigin).host
-        
+
         // Check if origin matches the host
         if (host && originHost === host) {
             return true
         }
-        
+
         // Check against allowed origins from environment
         const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || []
         if (allowedOrigins.includes(requestOrigin) || allowedOrigins.includes(originHost)) {
             return true
         }
-        
+
         // In development, be more permissive
         if (process.env.NODE_ENV === 'development') {
             return true
         }
-        
+
         return false
     } catch {
         return false
@@ -125,90 +125,90 @@ function handleOpenAIError(error: unknown): Response {
     if (error instanceof APIConnectionTimeoutError) {
         console.error('OpenAI timeout error:', error.message)
         return new Response(
-            JSON.stringify({ 
+            JSON.stringify({
                 error: 'The AI service is taking too long to respond. Please try again.',
                 code: 'TIMEOUT'
             }),
             { status: 504, headers: { 'Content-Type': 'application/json' } }
         )
     }
-    
+
     if (error instanceof RateLimitError) {
         console.error('OpenAI rate limit error:', error.message)
         return new Response(
-            JSON.stringify({ 
+            JSON.stringify({
                 error: 'AI service is temporarily overloaded. Please try again in a moment.',
                 code: 'RATE_LIMITED',
                 retryAfter: 60
             }),
-            { 
-                status: 503, 
-                headers: { 
+            {
+                status: 503,
+                headers: {
                     'Content-Type': 'application/json',
                     'Retry-After': '60'
-                } 
+                }
             }
         )
     }
-    
+
     if (error instanceof APIConnectionError) {
         console.error('OpenAI connection error:', error.message)
         return new Response(
-            JSON.stringify({ 
+            JSON.stringify({
                 error: 'Unable to connect to AI service. Please try again.',
                 code: 'CONNECTION_ERROR'
             }),
             { status: 503, headers: { 'Content-Type': 'application/json' } }
         )
     }
-    
+
     if (error instanceof APIError) {
         console.error('OpenAI API error:', error.status, error.message)
-        
+
         // Handle specific API error codes
         if (error.status === 400) {
             return new Response(
-                JSON.stringify({ 
+                JSON.stringify({
                     error: 'Invalid request to AI service. Please try rephrasing your message.',
                     code: 'INVALID_REQUEST'
                 }),
                 { status: 400, headers: { 'Content-Type': 'application/json' } }
             )
         }
-        
+
         if (error.status === 401 || error.status === 403) {
             console.error('OpenAI authentication error - check API key')
             return new Response(
-                JSON.stringify({ 
+                JSON.stringify({
                     error: 'AI service configuration error. Please contact support.',
                     code: 'AUTH_ERROR'
                 }),
                 { status: 503, headers: { 'Content-Type': 'application/json' } }
             )
         }
-        
+
         if (error.status === 429) {
             return new Response(
-                JSON.stringify({ 
+                JSON.stringify({
                     error: 'AI service quota exceeded. Please try again later.',
                     code: 'QUOTA_EXCEEDED',
                     retryAfter: 60
                 }),
-                { 
-                    status: 503, 
-                    headers: { 
+                {
+                    status: 503,
+                    headers: {
                         'Content-Type': 'application/json',
                         'Retry-After': '60'
-                    } 
+                    }
                 }
             )
         }
     }
-    
+
     // Generic error fallback
     console.error('Unexpected OpenAI error:', error)
     return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
             error: 'An error occurred while processing your request. Please try again.',
             code: 'UNKNOWN_ERROR'
         }),
@@ -216,7 +216,7 @@ function handleOpenAIError(error: unknown): Response {
     )
 }
 
-const SYSTEM_PROMPT = `Du är en hjälpsam AI-assistent för bokföring och ekonomi, specialiserad på svenska aktiebolag (AB). Du hjälper användare med:
+const SYSTEM_PROMPT = `Du är SCOPE AI, en intelligent assistent med FULL kontroll över bokföringssystemet. Du hjälper företagsägare (INTE revisorer) med:
 
 - Bokföring och redovisning
 - Momsdeklarationer och skattefrågor
@@ -224,9 +224,33 @@ const SYSTEM_PROMPT = `Du är en hjälpsam AI-assistent för bokföring och ekon
 - Årsredovisning och rapporter
 - Företagsstatistik och analys
 - Fakturering och transaktioner
-- 3:12-regler och utdelning
 
-Svara alltid på svenska om inte användaren skriver på engelska. Var koncis men informativ. Använd markdown för formatering när det passar (listor, fetstil, etc).`
+## Dina förmågor
+
+Du har tillgång till verktyg för att:
+1. **Läsa data** - Hämta transaktioner, lönebesked, momsrapporter, resultaträkning, balansräkning
+2. **Navigera** - Öppna relevanta sidor i dashboarden för användaren
+3. **Utföra åtgärder** - Skapa fakturor, kategorisera transaktioner, köra lönekörning (kräver bekräftelse)
+4. **Visa data** - Visa tabeller och förhandsgranskningar direkt i chatten
+
+## Viktiga regler
+
+1. **Användarna är företagsägare, INTE revisorer.** Undvik facktermer. Förklara enkelt.
+2. **För destruktiva åtgärder (moms, AGI, lönekörning): ALLTID be om bekräftelse först.**
+3. **Svara på svenska** om inte användaren skriver på engelska.
+4. **Var koncis men hjälpsam.** Använd markdown för formatering.
+5. **När du visar data, erbjud alltid "Öppna full vy"** för mer detaljer.
+
+## Exempel på bra svar
+
+Användare: "Hur mycket moms ska jag betala?"
+Du: Använd get_vat_report verktyget, sammanfatta beloppet i enkla termer, visa förhandsgranskning.
+
+Användare: "Visa mina transaktioner"
+Du: Använd get_transactions med limit 10, visa mini-tabell med option att se alla.
+
+Användare: "Skicka in moms"
+Du: Förbered momsdeklaration, visa sammanfattning, BE OM BEKRÄFTELSE innan inskickning.`
 
 // Rate limit configuration: 20 requests per minute per IP
 const RATE_LIMIT_CONFIG = {
@@ -234,12 +258,45 @@ const RATE_LIMIT_CONFIG = {
     windowMs: 60 * 1000, // 1 minute
 }
 
+// Import AI tools
+import {
+    initializeAITools,
+    aiToolRegistry,
+    toolsToOpenAIFunctions,
+    type AIToolResult,
+    type AIDisplayInstruction,
+    type AINavigationInstruction,
+    type AIConfirmationRequest,
+} from '@/lib/ai-tools'
+
+// Initialize tools on first request
+let toolsInitialized = false
+
+function ensureToolsInitialized() {
+    if (!toolsInitialized) {
+        initializeAITools()
+        toolsInitialized = true
+    }
+}
+
+// Response type for the frontend
+interface ChatResponse {
+    content: string
+    toolResults?: Array<{
+        toolName: string
+        result: AIToolResult
+    }>
+    display?: AIDisplayInstruction
+    navigation?: AINavigationInstruction
+    confirmationRequired?: AIConfirmationRequest
+}
+
 export async function POST(request: NextRequest) {
     try {
         // === 0. CSRF Protection ===
         if (!validateRequestOrigin(request)) {
             return new Response(
-                JSON.stringify({ 
+                JSON.stringify({
                     error: 'Invalid request origin',
                     code: 'CSRF_ERROR'
                 }),
@@ -298,7 +355,7 @@ export async function POST(request: NextRequest) {
         }
 
         // === 4. Validate and Sanitize Messages ===
-        const { messages } = body as { messages: unknown }
+        const { messages, confirmationId } = body as { messages: unknown; confirmationId?: string }
         const messageValidation = validateChatMessages(messages)
 
         if (!messageValidation.valid || !messageValidation.data) {
@@ -317,18 +374,12 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // === 6. Authentication Check (Placeholder) ===
-        // TODO: Implement proper authentication when you add a user system
-        // Example with NextAuth:
-        // const session = await getServerSession(authOptions)
-        // if (!session) {
-        //     return new Response(
-        //         JSON.stringify({ error: 'Authentication required' }),
-        //         { status: 401, headers: { 'Content-Type': 'application/json' } }
-        //     )
-        // }
+        // === 6. Initialize AI Tools ===
+        ensureToolsInitialized()
+        const tools = aiToolRegistry.getAll()
+        const openAITools = toolsToOpenAIFunctions(tools)
 
-        // === 7. Call OpenAI API with Sanitized Messages ===
+        // === 7. Call OpenAI API with Function Calling ===
         let response
         try {
             response = await openai.chat.completions.create({
@@ -337,51 +388,121 @@ export async function POST(request: NextRequest) {
                     { role: 'system', content: SYSTEM_PROMPT },
                     ...messageValidation.data
                 ],
+                tools: openAITools.length > 0 ? openAITools : undefined,
+                tool_choice: openAITools.length > 0 ? 'auto' : undefined,
                 temperature: 0.7,
-                max_tokens: 1000,
-                stream: true,
+                max_tokens: 1500,
             })
         } catch (error) {
             return handleOpenAIError(error)
         }
 
-        // Create a readable stream with error handling
-        const encoder = new TextEncoder()
-        const stream = new ReadableStream({
-            async start(controller) {
-                try {
-                    for await (const chunk of response) {
-                        const text = chunk.choices[0]?.delta?.content || ''
-                        if (text) {
-                            controller.enqueue(encoder.encode(text))
-                        }
-                    }
-                    controller.close()
-                } catch (error) {
-                    console.error('Stream error:', error)
-                    // Send error message in stream if possible
-                    try {
-                        const errorMessage = '\n\n[Error: Stream interrupted. Please try again.]'
-                        controller.enqueue(encoder.encode(errorMessage))
-                    } catch {
-                        // Ignore if we can't write to the stream
-                    }
-                    controller.error(error)
-                }
-            },
-        })
+        const choice = response.choices[0]
+        const message = choice.message
 
-        return new Response(stream, {
-            headers: {
-                'Content-Type': 'text/plain; charset=utf-8',
-                'Transfer-Encoding': 'chunked',
-                'X-RateLimit-Remaining': String(rateLimitResult.remaining),
-                'X-RateLimit-Reset': String(rateLimitResult.resetTime),
-            },
-        })
+        // === 8. Handle Tool Calls ===
+        if (message.tool_calls && message.tool_calls.length > 0) {
+            const toolResults: Array<{ toolName: string; result: AIToolResult }> = []
+            let display: AIDisplayInstruction | undefined
+            let navigation: AINavigationInstruction | undefined
+            let confirmationRequired: AIConfirmationRequest | undefined
+
+            for (const toolCall of message.tool_calls) {
+                // Handle function tool calls only
+                if (toolCall.type !== 'function') continue
+
+                // Access function properties (type-safe after the check above)
+                const funcCall = toolCall as { type: 'function'; function: { name: string; arguments: string } }
+                const toolName = funcCall.function.name
+                let params: unknown
+
+                try {
+                    params = JSON.parse(funcCall.function.arguments)
+                } catch {
+                    params = {}
+                }
+
+                // Execute the tool
+                const result = await aiToolRegistry.execute(toolName, params, {
+                    confirmationId,
+                    userId: 'user-1', // TODO: Get from auth
+                })
+
+                toolResults.push({ toolName, result })
+
+                // Collect display/navigation/confirmation instructions
+                if (result.display && !display) {
+                    display = result.display
+                }
+                if (result.navigation && !navigation) {
+                    navigation = result.navigation
+                }
+                if (result.confirmationRequired && !confirmationRequired) {
+                    confirmationRequired = result.confirmationRequired
+                }
+            }
+
+            // Build response message from tool results
+            let responseContent = message.content || ''
+
+            // Add tool result messages
+            for (const { toolName, result } of toolResults) {
+                if (result.message) {
+                    if (responseContent) responseContent += '\n\n'
+                    responseContent += result.message
+                }
+                if (result.error) {
+                    if (responseContent) responseContent += '\n\n'
+                    responseContent += `⚠️ ${result.error}`
+                }
+            }
+
+            // If there was a confirmation request, add helpful message
+            if (confirmationRequired) {
+                if (responseContent) responseContent += '\n\n'
+                responseContent += '👆 Granska informationen ovan och bekräfta för att fortsätta.'
+            }
+
+            // Return structured response
+            const chatResponse: ChatResponse = {
+                content: responseContent,
+                toolResults,
+                display,
+                navigation,
+                confirmationRequired,
+            }
+
+            return new Response(
+                JSON.stringify(chatResponse),
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+                        'X-RateLimit-Reset': String(rateLimitResult.resetTime),
+                    },
+                }
+            )
+        }
+
+        // === 9. No Tool Calls - Return Text Response ===
+        // For simple responses, we can still use streaming
+        const chatResponse: ChatResponse = {
+            content: message.content || '',
+        }
+
+        return new Response(
+            JSON.stringify(chatResponse),
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+                    'X-RateLimit-Reset': String(rateLimitResult.resetTime),
+                },
+            }
+        )
     } catch (error) {
         console.error('Chat API error:', error)
-        
+
         // Don't expose internal error details to client
         return new Response(
             JSON.stringify({ error: 'An unexpected error occurred. Please try again.' }),

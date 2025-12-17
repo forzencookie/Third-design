@@ -57,17 +57,64 @@ import {
     DialogFooter,
     DialogClose,
 } from "@/components/ui/dialog"
-import { mockVerifikationer as verifikationer } from "@/lib/mock-data"
+import { useTransactions } from "@/hooks/use-transactions"
+import { basAccounts } from "@/data/accounts"
+import { TRANSACTION_STATUS_LABELS } from "@/lib/localization"
 
+import { VerifikationDialog } from "./verifikation-dialog"
+
+interface Verification {
+    id: number | string // Allow string IDs from transactions
+    date: string
+    description: string
+    amount: number
+    konto: string
+    kontoName: string
+    hasTransaction: boolean
+    hasUnderlag: boolean
+}
 
 export function VerifikationerTable() {
-    const { toast } = useToast()
+    const toast = useToast()
+    const { transactions, isLoading } = useTransactions()
     const [selectedKonto, setSelectedKonto] = useState<string | null>(null)
     const [kontoDropdownOpen, setKontoDropdownOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
-    const [selectedVerifikation, setSelectedVerifikation] = useState<typeof verifikationer[0] | null>(null)
+    const [selectedVerifikation, setSelectedVerifikation] = useState<Verification | null>(null)
     const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
-    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+    const [createDialogOpen, setCreateDialogOpen] = useState(false)
+    const [selectedIds, setSelectedIds] = useState<Set<number | string>>(new Set())
+
+    // Derive verifications from actual booked transactions
+    const verifikationer = useMemo(() => {
+        if (!transactions) return []
+
+        // Filter for transactions that are "Recorded" (Bokförd)
+        // In a real app, this would query a dedicated verifications endpoint
+        const bookedTransactions = transactions.filter(t =>
+            t.status === TRANSACTION_STATUS_LABELS.RECORDED
+        )
+
+        return bookedTransactions.map(t => {
+            // Find account name
+            const accountInfo = basAccounts.find(a => a.number === t.account) ||
+                basAccounts.find(a => a.number === t.category) // Fallback if category is account number
+
+            // Extract numeric ID if possible, otherwise hash or use index for numeric requirement (if needed)
+            // But better to update ID type to string | number.
+
+            return {
+                id: t.id,
+                date: t.date,
+                description: t.name,
+                amount: t.amountValue,
+                konto: t.account || "1930", // Default to business account if missing
+                kontoName: accountInfo?.name || t.category || "Okänt konto",
+                hasTransaction: true,
+                hasUnderlag: true // Simplified assumption for booked transactions
+            }
+        })
+    }, [transactions])
 
     // Get unique accounts from verifikationer for filter dropdown
     const availableAccounts = useMemo(() => {
@@ -78,7 +125,7 @@ export function VerifikationerTable() {
             }
         })
         return Array.from(uniqueAccounts.values()).sort((a, b) => a.konto.localeCompare(b.konto))
-    }, [])
+    }, [verifikationer])
 
     // Filter verifikationer by search query and selected konto
     const filteredVerifikationer = useMemo(() => {
@@ -98,7 +145,7 @@ export function VerifikationerTable() {
         }
 
         return result
-    }, [searchQuery, selectedKonto])
+    }, [searchQuery, selectedKonto, verifikationer])
 
     const selectedKontoData = availableAccounts.find(k => k.konto === selectedKonto)
 
@@ -116,14 +163,14 @@ export function VerifikationerTable() {
             missingUnderlag,
             totalAmount
         }
-    }, [])
+    }, [verifikationer])
 
     const handleViewDetails = (v: typeof verifikationer[0]) => {
         setSelectedVerifikation(v)
         setDetailsDialogOpen(true)
     }
 
-    const toggleSelection = (id: number) => {
+    const toggleSelection = (id: number | string) => {
         setSelectedIds(prev => {
             const next = new Set(prev)
             if (next.has(id)) {
@@ -144,10 +191,7 @@ export function VerifikationerTable() {
     }
 
     const handleBulkAction = (action: string) => {
-        toast({
-            title: `${action} startad`,
-            description: `Bearbetar ${selectedIds.size} verifikationer...`,
-        })
+        toast.info(`${action} startad`, `Bearbetar ${selectedIds.size} verifikationer...`)
         // setSelectedIds(new Set()) // Optional: clear selection after action
     }
 
@@ -184,6 +228,15 @@ export function VerifikationerTable() {
 
             {/* Section Separator */}
             <div className="border-b-2 border-border/60" />
+
+            {/* Create Dialog */}
+            <VerifikationDialog
+                open={createDialogOpen}
+                onOpenChange={setCreateDialogOpen}
+                onVerifikationCreated={(transactionId, underlagId, type) => {
+                    toast.success("Verifikation skapad", "Kopplingen har sparats och status har uppdaterats till Bokförd.")
+                }}
+            />
 
             {/* Details Dialog */}
             <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
@@ -303,7 +356,7 @@ export function VerifikationerTable() {
                             <Download className="h-3.5 w-3.5" />
                             Exportera
                         </Button>
-                        <Button size="sm" className="h-8 gap-1">
+                        <Button size="sm" className="h-8 gap-1" onClick={() => setCreateDialogOpen(true)}>
                             <Plus className="h-3.5 w-3.5" />
                             Ny verifikation
                         </Button>

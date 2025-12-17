@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { 
-    Bot, 
-    Upload, 
-    FileText, 
-    Check, 
-    X, 
+import {
+    Bot,
+    Upload,
+    FileText,
+    Check,
+    X,
     Sparkles,
     Edit3,
     ChevronRight,
@@ -18,7 +18,9 @@ import {
     Calendar,
     Banknote,
     CreditCard,
+    Copy,
 } from "lucide-react"
+import type { AppStatus } from "@/lib/status-types"
 import { cn } from "@/lib/utils"
 import { useTextMode } from "@/providers/text-mode-provider"
 import { Button } from "@/components/ui/button"
@@ -94,21 +96,34 @@ const CATEGORIES = [
 // Types
 // ============================================================================
 
+export interface BookableEntity {
+    id: string
+    name: string
+    date: string
+    amount: string
+    status?: string
+    account?: string
+    category?: string
+    type?: 'transaction' | 'invoice' | 'receipt'
+}
+
 interface BookingDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    transaction: Transaction | null
+    entity: BookableEntity | null
     aiSuggestion?: AISuggestion | null
     onBook: (booking: BookingData) => Promise<void>
 }
 
 export interface BookingData {
-    transactionId: string
+    entityId: string
+    entityType?: 'transaction' | 'invoice' | 'receipt'
     useAiSuggestion: boolean
     category: string
     debitAccount: string
     creditAccount: string
     description: string
+    amount?: number
     attachmentUrl?: string
     attachmentName?: string
 }
@@ -117,10 +132,10 @@ export interface BookingData {
 // BookingDialog Component
 // ============================================================================
 
-export function BookingDialog({ 
-    open, 
-    onOpenChange, 
-    transaction,
+export function BookingDialog({
+    open,
+    onOpenChange,
+    entity,
     aiSuggestion,
     onBook,
 }: BookingDialogProps) {
@@ -129,12 +144,15 @@ export function BookingDialog({
     const [isLoading, setIsLoading] = useState(false)
     const [uploadedFile, setUploadedFile] = useState<File | null>(null)
     const [uploadPreview, setUploadPreview] = useState<string | null>(null)
-    
+
     // Booking fields - initialized from AI suggestion if available
     const [category, setCategory] = useState(aiSuggestion?.category || '')
     const [debitAccount, setDebitAccount] = useState(aiSuggestion?.account || '6990')
     const [creditAccount, setCreditAccount] = useState('1930')
     const [description, setDescription] = useState('')
+
+    const bookingMode = aiSuggestion ? 'ai' : 'manual'
+    const isEditingAI = false // Simplified for now since logic was complex in original
 
     // Sync values when aiSuggestion changes or dialog opens
     useEffect(() => {
@@ -177,20 +195,22 @@ export function BookingDialog({
     }
 
     const handleBook = async () => {
-        if (!transaction) return
-        
+        if (!entity) return
+
         setIsLoading(true)
         try {
             const bookingData: BookingData = {
-                transactionId: transaction.id,
+                entityId: entity.id,
+                entityType: entity.type,
                 useAiSuggestion: !!aiSuggestion,
                 category: category,
                 debitAccount: debitAccount,
                 creditAccount: creditAccount,
-                description: description || `Bokföring: ${transaction.name}`,
+                description: description || `Bokföring: ${entity.name}`,
+                amount: entity.amount ? parseFloat(entity.amount.replace(/[^0-9.-]/g, '')) : 0,
                 attachmentName: uploadedFile?.name,
             }
-            
+
             await onBook(bookingData)
             handleOpenChange(false)
         } catch (error) {
@@ -200,7 +220,7 @@ export function BookingDialog({
         }
     }
 
-    if (!transaction) return null
+    if (!entity) return null
 
     const hasAiSuggestion = !!aiSuggestion && aiSuggestion.confidence > 0
 
@@ -210,10 +230,10 @@ export function BookingDialog({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Receipt className="h-5 w-5" />
-                        Bokför transaktion
+                        Bokför {entity.type === 'invoice' ? 'faktura' : entity.type === 'receipt' ? 'kvitto' : 'transaktion'}
                     </DialogTitle>
                     <DialogDescription>
-                        Granska och bokför transaktionen med AI-hjälp eller manuellt
+                        Granska och bokför {entity.type === 'invoice' ? 'fakturan' : entity.type === 'receipt' ? 'kvittot' : 'transaktionen'} med AI-hjälp eller manuellt
                     </DialogDescription>
                 </DialogHeader>
 
@@ -253,24 +273,24 @@ export function BookingDialog({
                     </div>
                 </div>
 
-                {/* Step 1: Transaction Details */}
+                {/* Step 1: Entity Details */}
                 {step === 'details' && (
                     <div className="space-y-6">
-                        {/* Transaction info card */}
+                        {/* Info card */}
                         <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="flex items-start gap-3">
                                     <Building2 className="h-4 w-4 mt-0.5 text-muted-foreground" />
                                     <div>
-                                        <p className="text-xs text-muted-foreground">Leverantör</p>
-                                        <p className="font-medium">{transaction.name}</p>
+                                        <p className="text-xs text-muted-foreground">Motpart</p>
+                                        <p className="font-medium">{entity.name}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
                                     <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
                                     <div>
                                         <p className="text-xs text-muted-foreground">Datum</p>
-                                        <p className="font-medium">{transaction.date}</p>
+                                        <p className="font-medium">{entity.date}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
@@ -279,25 +299,25 @@ export function BookingDialog({
                                         <p className="text-xs text-muted-foreground">Belopp</p>
                                         <p className={cn(
                                             "font-medium",
-                                            transaction.amount.startsWith("+") 
-                                                ? "text-green-600" 
+                                            entity.amount.startsWith("+")
+                                                ? "text-green-600"
                                                 : "text-foreground"
-                                        )}>{transaction.amount}</p>
+                                        )}>{entity.amount}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
                                     <CreditCard className="h-4 w-4 mt-0.5 text-muted-foreground" />
                                     <div>
                                         <p className="text-xs text-muted-foreground">Konto</p>
-                                        <p className="font-medium">{transaction.account}</p>
+                                        <p className="font-medium">{entity.account || '-'}</p>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="pt-2 border-t">
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm text-muted-foreground">Status</span>
-                                    <AppStatusBadge status={transaction.status} />
+                                    <AppStatusBadge status={(entity.status as AppStatus) || 'Att bokföra'} />
                                 </div>
                             </div>
                         </div>
@@ -308,7 +328,7 @@ export function BookingDialog({
                                 <FileText className="h-4 w-4" />
                                 Ladda upp underlag (kvitto/faktura)
                             </Label>
-                            
+
                             {!uploadedFile ? (
                                 <UploadDropzone
                                     accept=".pdf,.png,.jpg,.jpeg"
@@ -331,9 +351,9 @@ export function BookingDialog({
                             ) : (
                                 <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
                                     {uploadPreview ? (
-                                        <img 
-                                            src={uploadPreview} 
-                                            alt="Preview" 
+                                        <img
+                                            src={uploadPreview}
+                                            alt="Preview"
                                             className="h-16 w-16 object-cover rounded"
                                         />
                                     ) : (
@@ -347,8 +367,8 @@ export function BookingDialog({
                                             {(uploadedFile.size / 1024).toFixed(1)} KB
                                         </p>
                                     </div>
-                                    <Button 
-                                        variant="ghost" 
+                                    <Button
+                                        variant="ghost"
                                         size="sm"
                                         onClick={() => {
                                             setUploadedFile(null)
@@ -426,12 +446,47 @@ export function BookingDialog({
 
                             <div className="space-y-2">
                                 <Label>Beskrivning (valfritt)</Label>
-                                <Textarea 
+                                <Textarea
                                     placeholder="Lägg till en beskrivning..."
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                 />
                             </div>
+
+                            {/* Asset Registration Logic */}
+                            {(entity.amount && parseFloat(entity.amount.replace(/[^0-9.-]/g, '')) > 25000) && (
+                                <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                                    <Sparkles className="h-4 w-4 text-blue-600 mt-0.5" />
+                                    <div className="space-y-2">
+                                        <div className="text-sm">
+                                            <p className="font-medium text-blue-800 dark:text-blue-200">
+                                                Registrera som inventarie?
+                                            </p>
+                                            <p className="text-blue-700 dark:text-blue-300 text-xs">
+                                                Beloppet överstiger ett halvt prisbasbelopp. Det kan vara fördelaktigt att skriva av denna kostnad över tid.
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="asset-reg"
+                                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                // mock logic - in real app would toggle asset state
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setDebitAccount("1210") // Maskiner och inventarier
+                                                    } else {
+                                                        setDebitAccount("5410") // Förbrukningsinventarier
+                                                    }
+                                                }}
+                                            />
+                                            <label htmlFor="asset-reg" className="text-sm font-medium text-blue-900 dark:text-blue-100 cursor-pointer">
+                                                Ja, lägg till i anläggningsregistret
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -444,22 +499,20 @@ export function BookingDialog({
                                 <CheckCircle2 className="h-4 w-4 text-green-600" />
                                 Sammanfattning av bokföring
                             </h4>
-                            
+
                             <div className="grid grid-cols-2 gap-3 text-sm">
                                 <div>
-                                    <p className="text-muted-foreground">Transaktion</p>
-                                    <p className="font-medium">{transaction.name}</p>
+                                    <p className="text-muted-foreground">Motpart</p>
+                                    <p className="font-medium">{entity.name}</p>
                                 </div>
                                 <div>
                                     <p className="text-muted-foreground">Belopp</p>
-                                    <p className="font-medium">{transaction.amount}</p>
+                                    <p className="font-medium">{entity.amount}</p>
                                 </div>
                                 <div>
                                     <p className="text-muted-foreground">Kategori</p>
                                     <p className="font-medium">
-                                        {bookingMode === 'ai' 
-                                            ? (isEditingAI ? editedCategory : aiSuggestion?.category)
-                                            : manualCategory}
+                                        {category || '-'}
                                     </p>
                                 </div>
                                 <div>
@@ -468,7 +521,7 @@ export function BookingDialog({
                                         {bookingMode === 'ai' ? (
                                             <>
                                                 <Sparkles className="h-3 w-3 text-violet-600" />
-                                                AI-rekommendation{isEditingAI && ' (redigerad)'}
+                                                AI-rekommendation
                                             </>
                                         ) : (
                                             <>
@@ -481,17 +534,13 @@ export function BookingDialog({
                                 <div>
                                     <p className="text-muted-foreground">{text.bookkeeping.debit}</p>
                                     <p className="font-medium">
-                                        {bookingMode === 'ai' 
-                                            ? (isEditingAI ? editedDebitAccount : aiSuggestion?.account)
-                                            : manualDebitAccount}
+                                        {debitAccount || '-'}
                                     </p>
                                 </div>
                                 <div>
                                     <p className="text-muted-foreground">{text.bookkeeping.credit}</p>
                                     <p className="font-medium">
-                                        {bookingMode === 'ai'
-                                            ? (isEditingAI ? editedCreditAccount : '1930')
-                                            : manualCreditAccount}
+                                        {creditAccount || '-'}
                                     </p>
                                 </div>
                             </div>
@@ -533,29 +582,29 @@ export function BookingDialog({
                             </Button>
                         </>
                     )}
-                    
+
                     {step === 'booking' && (
                         <>
                             <Button variant="outline" className="min-w-24" onClick={() => setStep('details')}>
                                 Tillbaka
                             </Button>
-                            <Button 
+                            <Button
                                 className="min-w-24"
                                 onClick={() => setStep('confirm')}
-                                disabled={bookingMode === 'manual' && !manualCategory}
+                                disabled={bookingMode === 'manual' && !category}
                             >
                                 Fortsätt
                                 <ChevronRight className="h-4 w-4 ml-1" />
                             </Button>
                         </>
                     )}
-                    
+
                     {step === 'confirm' && (
                         <>
                             <Button variant="outline" onClick={() => setStep('booking')}>
                                 Tillbaka
                             </Button>
-                            <Button 
+                            <Button
                                 onClick={handleBook}
                                 disabled={isLoading}
                                 className="bg-green-600 hover:bg-green-700"

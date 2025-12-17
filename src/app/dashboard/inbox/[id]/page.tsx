@@ -23,7 +23,8 @@ import { categoryColors, categoryLabels } from "@/data/inbox"
 import { InboxItem } from "@/types"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
-import { InvoiceDocument, ReceiptDocument } from "@/components/documents"
+import { InvoiceDocument } from "@/components/revenue"
+import { ReceiptDocument } from "@/components/expenses"
 
 export default function MessagePage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params)

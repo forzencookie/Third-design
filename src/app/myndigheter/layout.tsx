@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { Building2, Landmark, LayoutDashboard, ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -10,7 +10,8 @@ export default function MyndigheterLayout({
 }: {
   children: React.ReactNode
 }) {
-  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const currentTab = searchParams.get("tab") || "skatteverket"
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -19,8 +20,8 @@ export default function MyndigheterLayout({
         <div className="container max-w-6xl py-4 px-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link 
-                href="/simulator" 
+              <Link
+                href="/simulator"
                 className="flex items-center gap-2 text-gray-500 hover:text-gray-700"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -48,10 +49,10 @@ export default function MyndigheterLayout({
         <div className="container max-w-6xl px-4">
           <nav className="flex gap-1">
             <Link
-              href="/myndigheter"
+              href="/myndigheter?tab=skatteverket"
               className={cn(
                 "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-                pathname === "/myndigheter"
+                currentTab === "skatteverket"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-gray-500 hover:text-gray-700"
               )}
@@ -62,10 +63,10 @@ export default function MyndigheterLayout({
               </div>
             </Link>
             <Link
-              href="/myndigheter/bolagsverket"
+              href="/myndigheter?tab=bolagsverket"
               className={cn(
                 "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-                pathname === "/myndigheter/bolagsverket"
+                currentTab === "bolagsverket"
                   ? "border-purple-600 text-purple-600"
                   : "border-transparent text-gray-500 hover:text-gray-700"
               )}

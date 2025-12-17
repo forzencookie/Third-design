@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useState, useMemo } from "react"
-import { formatDateLong } from "@/lib/utils"
+import { formatDateLong, cn } from "@/lib/utils"
 import {
   Vote,
   Calendar,
@@ -26,6 +26,7 @@ import {
   Megaphone,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { SearchBar } from "@/components/ui/search-bar"
 import { Textarea } from "@/components/ui/textarea"
@@ -50,6 +51,7 @@ import { SendNoticeDialog } from "./dialogs/send-notice-dialog"
 import { AppStatusBadge } from "@/components/ui/status-badge"
 import { type MeetingStatus } from "@/lib/status-types"
 import { mockMembers } from "@/data/ownership"
+import { Progress } from "@/components/ui/progress"
 
 // Mock data for Förening annual meetings
 interface ForeningMeeting {
@@ -140,6 +142,7 @@ export function Arsmote() {
   const [showMotionDialog, setShowMotionDialog] = useState(false)
   const [showSendNoticeDialog, setShowSendNoticeDialog] = useState(false)
   const [selectedMeeting, setSelectedMeeting] = useState<ForeningMeeting | null>(null)
+  const [noticeMeeting, setNoticeMeeting] = useState<ForeningMeeting | null>(null)
 
   // Get voting-eligible members
   const votingMembers = useMemo(() => {
@@ -224,6 +227,11 @@ export function Arsmote() {
     'Mötets avslutande',
   ]
 
+  const handleOpenNotice = (meeting: ForeningMeeting) => {
+    setNoticeMeeting(meeting)
+    setShowSendNoticeDialog(true)
+  }
+
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
@@ -271,7 +279,7 @@ export function Arsmote() {
                   Ordinarie årsmöte planerat {formatDateLong(stats.nextMeeting.date)}
                 </CardDescription>
               </div>
-              <Button variant="outline" onClick={() => setShowSendNoticeDialog(true)}>
+              <Button variant="outline" onClick={() => handleOpenNotice(stats.nextMeeting!)}>
                 <Send className="h-4 w-4 mr-2" />
                 Skicka kallelse
               </Button>
@@ -353,6 +361,7 @@ export function Arsmote() {
             onOpenChange={setShowSendNoticeDialog}
             variant="association"
             recipientCount={mockMembers.filter(m => m.status === 'aktiv').length}
+            meeting={noticeMeeting || undefined}
             onSubmit={() => console.log("Notice prepared")}
           />
 
@@ -415,7 +424,7 @@ export function Arsmote() {
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       {meeting.status === 'kallad' && (
-                        <DropdownMenuItem onClick={() => setShowSendNoticeDialog(true)}>
+                        <DropdownMenuItem onClick={() => handleOpenNotice(meeting)}>
                           <Send className="h-4 w-4 mr-2" />
                           Skicka kallelse
                         </DropdownMenuItem>

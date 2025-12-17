@@ -53,6 +53,7 @@ export const INVOICE_STATUS_LABELS = {
     DRAFT: "Utkast",
     OVERDUE: "Förfallen",
     CANCELLED: "Makulerad",
+    RECORDED: "Bokförd",  // Only achieved via verifikation matching
 } as const
 
 // =============================================================================
@@ -66,6 +67,7 @@ export const RECEIPT_STATUS_LABELS = {
     REVIEW_NEEDED: "Granskning krävs",
     PROCESSED: "Behandlad",
     REJECTED: "Avvisad",
+    RECORDED: "Bokförd",  // Only achieved via verifikation matching
 } as const
 
 // =============================================================================
@@ -107,12 +109,17 @@ export type GeneralStatus = (typeof GENERAL_STATUS_LABELS)[keyof typeof GENERAL_
 // Supplier Invoice Statuses (Leverantörsfakturor)
 // =============================================================================
 
+// =============================================================================
+// Supplier Invoice Statuses (Leverantörsfakturor)
+// =============================================================================
+
 export const SUPPLIER_INVOICE_STATUS_LABELS = {
     RECEIVED: "Mottagen",
     ATTESTED: "Attesterad",
     PAID: "Betald",
     OVERDUE: "Förfallen",
     DISPUTE: "Tvist",
+    RECORDED: "Bokförd",
 } as const
 
 // =============================================================================

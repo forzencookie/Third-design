@@ -91,10 +91,17 @@ export const TransactionRow = memo(function TransactionRow({
                         <span className="font-medium">{transaction.name}</span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{transaction.date}</td>
-                    <td className="px-4 py-3 font-medium whitespace-nowrap">
-                        <span className={cn(transaction.amount.startsWith("+") ? "text-green-600 dark:text-green-500/70" : "text-foreground")}>
-                            {transaction.amount}
-                        </span>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                        <div>
+                            <div className={cn("font-medium", transaction.amount.startsWith("+") ? "text-green-600 dark:text-green-500/70" : "text-foreground")}>
+                                {transaction.amount}
+                            </div>
+                            {transaction.vatAmount !== undefined && (
+                                <div className="text-xs text-muted-foreground">
+                                    Moms {Math.abs(transaction.vatAmount).toLocaleString("sv-SE")} kr
+                                </div>
+                            )}
+                        </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                         <AppStatusBadge status={transaction.status} size="sm" />

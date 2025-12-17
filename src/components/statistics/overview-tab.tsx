@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Wallet, TrendingUp } from "lucide-react"
+import { Wallet, TrendingUp, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
 import { Card } from "@/components/ui/card"
@@ -27,19 +27,52 @@ import {
 } from "recharts"
 import {
     termExplanations,
-    financialHealth,
-    accounts,
     revenueChartConfig,
     timeRangeOptions,
-    filterDataByTimeRange,
 } from "./statistics-data"
+import { useCompanyStatistics } from "@/hooks/use-company-statistics"
 
 export function OverviewTab() {
     const [timeRange, setTimeRange] = React.useState("12m")
-    
+
+    // Use the hook
+    const { financialHealth, monthlyRevenueData, isLoading, accountBalances } = useCompanyStatistics()
+
     const filteredRevenueData = React.useMemo(() => {
-        return filterDataByTimeRange(timeRange)
-    }, [timeRange])
+        if (!monthlyRevenueData || monthlyRevenueData.length === 0) return []
+
+        // Simple slicing based on timeRange
+        // Assuming data is sorted ASC
+        let slice = -12
+        switch (timeRange) {
+            case "3m": slice = -3; break;
+            case "6m": slice = -6; break;
+            case "12m": slice = -12; break;
+            case "2y": slice = -24; break;
+            case "4y": slice = -48; break;
+            case "6y": slice = 0; break; // All
+        }
+
+        // Try to handle if data length is less than request scice
+        if (Math.abs(slice) > monthlyRevenueData.length) slice = 0;
+
+        return slice === 0 ? monthlyRevenueData : monthlyRevenueData.slice(slice)
+    }, [monthlyRevenueData, timeRange])
+
+    // Filter for Bank Accounts (19xx)
+    const bankAccounts = React.useMemo(() => {
+        // Accounts 1900-1999 are typically Liquid Assets / Cash / Bank
+        return accountBalances.filter(a => a.accountNumber.startsWith('19'))
+    }, [accountBalances])
+
+    // Calculate total result from displayed data for the summary text
+    const yearlyResult = React.useMemo(() => {
+        return filteredRevenueData.reduce((sum, item) => sum + item.resultat, 0)
+    }, [filteredRevenueData])
+
+    if (isLoading) {
+        return <div className="h-96 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+    }
 
     return (
         <div className="space-y-6">
@@ -65,7 +98,7 @@ export function OverviewTab() {
             <div className="pt-6 border-t-2 border-border/60">
                 <div className="flex items-center gap-2 space-y-0 pb-5 sm:flex-row">
                     <div className="grid flex-1 gap-1">
-                        <h3 className="font-semibold leading-none tracking-tight">Intäkter & Kostnader 2024</h3>
+                        <h3 className="font-semibold leading-none tracking-tight">Intäkter & Kostnader</h3>
                         <p className="text-sm text-muted-foreground">
                             Visar intäkter och kostnader över tid
                         </p>
@@ -87,59 +120,62 @@ export function OverviewTab() {
                     </Select>
                 </div>
                 <div className="pt-4">
-                    <ChartContainer config={revenueChartConfig} className="aspect-auto h-[250px] w-full">
-                        <AreaChart data={filteredRevenueData}>
-                            <defs>
-                                <linearGradient id="fillIntakter" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="var(--color-intäkter)" stopOpacity={0.8} />
-                                    <stop offset="95%" stopColor="var(--color-intäkter)" stopOpacity={0.1} />
-                                </linearGradient>
-                                <linearGradient id="fillKostnader" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="var(--color-kostnader)" stopOpacity={0.8} />
-                                    <stop offset="95%" stopColor="var(--color-kostnader)" stopOpacity={0.1} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid vertical={false} />
-                            <XAxis 
-                                dataKey="month" 
-                                tickLine={false}
-                                axisLine={false}
-                                tickMargin={8}
-                                minTickGap={32}
-                            />
-                            <ChartTooltip 
-                                cursor={false} 
-                                content={
-                                    <ChartTooltipContent 
-                                        labelFormatter={(value) => value}
-                                        indicator="dot"
-                                    />
-                                } 
-                            />
-                            <Area 
-                                dataKey="kostnader"
-                                type="natural" 
-                                fill="url(#fillKostnader)"
-                                stroke="var(--color-kostnader)" 
-                                stackId="a"
-                            />
-                            <Area 
-                                dataKey="intäkter"
-                                type="natural" 
-                                fill="url(#fillIntakter)"
-                                stroke="var(--color-intäkter)" 
-                                stackId="a"
-                            />
-                            <ChartLegend content={<ChartLegendContent />} />
-                        </AreaChart>
-                    </ChartContainer>
+                    {filteredRevenueData.length > 0 ? (
+                        <ChartContainer config={revenueChartConfig} className="aspect-auto h-[250px] w-full">
+                            <AreaChart data={filteredRevenueData}>
+                                <defs>
+                                    <linearGradient id="fillIntakter" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="var(--color-intäkter)" stopOpacity={0.8} />
+                                        <stop offset="95%" stopColor="var(--color-intäkter)" stopOpacity={0.1} />
+                                    </linearGradient>
+                                    <linearGradient id="fillKostnader" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="var(--color-kostnader)" stopOpacity={0.8} />
+                                        <stop offset="95%" stopColor="var(--color-kostnader)" stopOpacity={0.1} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid vertical={false} />
+                                <XAxis
+                                    dataKey="month"
+                                    tickLine={false}
+                                    axisLine={false}
+                                    tickMargin={8}
+                                    minTickGap={32}
+                                />
+                                <ChartTooltip
+                                    cursor={false}
+                                    content={
+                                        <ChartTooltipContent
+                                            labelFormatter={(value) => value}
+                                            indicator="dot"
+                                        />
+                                    }
+                                />
+                                <Area
+                                    dataKey="kostnader"
+                                    type="natural"
+                                    fill="url(#fillKostnader)"
+                                    stroke="var(--color-kostnader)"
+                                    stackId="a"
+                                />
+                                <Area
+                                    dataKey="intäkter"
+                                    type="natural"
+                                    fill="url(#fillIntakter)"
+                                    stroke="var(--color-intäkter)"
+                                    stackId="a"
+                                />
+                                <ChartLegend content={<ChartLegendContent />} />
+                            </AreaChart>
+                        </ChartContainer>
+                    ) : (
+                        <div className="h-[250px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
+                            Ingen data tillgänglig för denna period
+                        </div>
+                    )}
                 </div>
                 <div className="flex-col gap-2 text-sm pt-4 flex items-center">
                     <div className="flex items-center gap-2 font-medium leading-none">
-                        Årsresultat: +713 000 kr <TrendingUp className="h-4 w-4 text-emerald-500" />
-                    </div>
-                    <div className="leading-none text-muted-foreground">
-                        +18% jämfört med förra året
+                        Periodens resultat: {yearlyResult.toLocaleString()} kr <TrendingUp className={cn("h-4 w-4", yearlyResult >= 0 ? "text-emerald-500" : "text-rose-500")} />
                     </div>
                 </div>
             </div>
@@ -147,25 +183,22 @@ export function OverviewTab() {
             {/* Account Balances */}
             <div className="pt-6 border-t-2 border-border/60">
                 <div className="grid grid-cols-3 gap-4">
-                    {accounts.map((account) => (
-                        <Card key={account.name} className="p-4">
+                    {bankAccounts.map((account) => (
+                        <Card key={account.accountNumber} className="p-4">
                             <div className="flex items-center justify-between">
-                                <span className="text-sm font-semibold text-muted-foreground">{account.name}</span>
+                                <span className="text-sm font-semibold text-muted-foreground">{account.account?.name || account.accountNumber}</span>
                                 <Wallet className="h-4 w-4 text-muted-foreground" />
                             </div>
                             <div className="mt-2">
                                 <span className="text-2xl font-bold">{account.balance.toLocaleString("sv-SE")} kr</span>
-                                {account.change !== "0" && (
-                                    <span className={cn(
-                                        "ml-2 text-sm",
-                                        account.change.startsWith("+") ? "text-emerald-600" : "text-rose-600"
-                                    )}>
-                                        {account.change} kr
-                                    </span>
-                                )}
                             </div>
                         </Card>
                     ))}
+                    {bankAccounts.length === 0 && (
+                        <div className="col-span-3 text-center py-8 text-muted-foreground">
+                            Inga bankkonton hittades.
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

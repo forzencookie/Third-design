@@ -2,14 +2,15 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { 
-    CheckCircle2, 
-    Clock, 
-    AlertCircle, 
+import {
+    CheckCircle2,
+    Clock,
+    AlertCircle,
     XCircle,
-    LucideIcon,
+    BookOpen,
+    type LucideIcon,
 } from "lucide-react"
-import { 
+import {
     type StatusVariant,
     type AppStatus,
     getStatusVariant,
@@ -102,30 +103,58 @@ export function StatusBadge({
  * 
  * @see status-types.ts for all available status values
  */
-export function AppStatusBadge({ 
-    status, 
+import { useTextMode } from "@/providers/text-mode-provider"
+
+const EASY_MODE_MAP: Record<string, string> = {
+    "Attesterad": "Godkänd",
+    "Tvist": "Problem",
+    "Makulerad": "Borttagen",
+    "Avvisad": "Nekad",
+    "Bearbetar": "Läser in...",
+    "Förfallen": "Sen",
+    "Granskning krävs": "Kolla över",
+    "Behandlad": "Klar",
+    "Att bokföra": "Att sortera",
+    "Saknar underlag": "Saknar kvitto",
+    "Mottagen": "Ny",
+}
+
+export function AppStatusBadge({
+    status,
     className,
     size = "sm",
     showIcon = false,
-}: { 
+}: {
     status: AppStatus
     className?: string
     size?: "sm" | "md"
     showIcon?: boolean
 }) {
+    const { isEnkel } = useTextMode()
     const variant = getStatusVariant(status)
-    return <StatusBadge status={status} variant={variant} size={size} showIcon={showIcon} className={className} />
+    const isBooked = status === "Bokförd"
+
+    // Determine display text
+    const displayText = (isEnkel && EASY_MODE_MAP[status]) ? EASY_MODE_MAP[status] : status
+
+    // Automatically use BookOpen icon for 'Bokförd' status
+    const statusIcon = isBooked ? BookOpen : undefined
+    // For booked items, we might want to ensure the icon is shown if it adds context
+    // but we respect the prop if it's explicitly false (though default is false).
+    // Let's passed it as the icon prop, the consumer can choose to show it via showIcon.
+
+    return <StatusBadge status={displayText} variant={variant} size={size} showIcon={showIcon || isBooked} icon={statusIcon} className={className} />
 }
 
 /**
  * @deprecated Use AppStatusBadge instead - this is kept for backward compatibility
  */
-export function SwedishStatusBadge({ 
-    status, 
-    className 
-}: { 
+export function SwedishStatusBadge({
+    status,
+    className
+}: {
     status: AppStatus
-    className?: string 
+    className?: string
 }) {
     return <AppStatusBadge status={status} className={className} />
 }

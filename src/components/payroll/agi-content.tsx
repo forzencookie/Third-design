@@ -42,16 +42,75 @@ import { IconButton, IconButtonGroup } from "@/components/ui/icon-button"
 import { AppStatusBadge } from "@/components/ui/status-badge"
 import { useToast } from "@/components/ui/toast"
 import { BulkActionToolbar, type BulkAction } from "../shared/bulk-action-toolbar"
-import { Utils } from "lucide-react" // Placeholder to keep imports valid if needed, or just let typescript handle it. Actually I will just add the import.
+
 
 import { termExplanations, agiReports as initialAgiReports } from "./constants"
 import { submitToSkatteverket, type SkatteverketResponse } from "@/services/myndigheter-client"
 
 type AGIReport = typeof initialAgiReports[0]
 
+import { useVerifications } from "@/hooks/use-verifications"
+import { getMonth, getYear, parseISO, format } from "date-fns"
+import { sv } from "date-fns/locale"
+import { generateAgiXML } from "@/lib/agi-generator"
+
+import { useCompany } from "@/providers/company-provider"
+
 export function AGIContent() {
     const toast = useToast()
-    const [agiReportsState, setAgiReportsState] = useState<AGIReport[]>(initialAgiReports)
+    const { verifications } = useVerifications()
+    const { company } = useCompany()
+
+    // Generate AGI reports from verifications
+    const agiReportsState = useMemo(() => {
+        const reportsMap = new Map<string, AGIReport>()
+
+        verifications.forEach(v => {
+            const date = parseISO(v.date)
+            const period = format(date, "MMMM yyyy", { locale: sv })
+            const periodKey = format(date, "yyyy-MM")
+
+            if (!reportsMap.has(periodKey)) {
+                // Calculate due date (12th of next month)
+                const nextMonth = new Date(getYear(date), getMonth(date) + 1, 12)
+                const dueDate = format(nextMonth, "d MMM yyyy", { locale: sv })
+
+                reportsMap.set(periodKey, {
+                    period: period.charAt(0).toUpperCase() + period.slice(1),
+                    dueDate,
+                    status: "pending",
+                    employees: 0,
+                    totalSalary: 0,
+                    tax: 0,
+                    contributions: 0
+                })
+            }
+
+            const report = reportsMap.get(periodKey)!
+
+            v.rows.forEach(row => {
+                const acc = parseInt(row.account)
+                if (acc >= 7000 && acc <= 7399) {
+                    report.totalSalary += row.debit
+                    if (row.debit > 0) report.employees += 1
+                }
+                if (acc === 2710) {
+                    report.tax += row.credit
+                }
+                if (acc >= 2730 && acc <= 2739) {
+                    report.contributions += row.credit
+                }
+            })
+        })
+
+        return Array.from(reportsMap.entries())
+            .sort((a, b) => b[0].localeCompare(a[0]))
+            .map(([_, report]) => {
+                if (report.employees === 0 && report.totalSalary > 0) report.employees = 1
+                return report
+            })
+    }, [verifications])
+
     const [showAIDialog, setShowAIDialog] = useState(false)
     const [step, setStep] = useState(1)
     const [isSending, setIsSending] = useState(false)
@@ -104,8 +163,8 @@ export function AGIContent() {
             icon: Trash2,
             variant: "destructive",
             onClick: (ids) => {
-                setAgiReportsState(prev => prev.filter(r => !ids.includes(r.period)))
-                toast.success("Rapporter borttagna", `${ids.length} rapport(er) har tagits bort`)
+                // Cannot delete real ledger derived reports easily without deleting verifications
+                toast.error("Kan inte ta bort", "Dessa rapporter baseras på bokföringen.")
                 setSelectedIds(new Set())
             },
         },
@@ -116,7 +175,7 @@ export function AGIContent() {
             onClick: async (ids) => {
                 setIsSending(true)
                 const reportsToSend = agiReportsState.filter(r => ids.includes(r.period))
-                
+
                 let successCount = 0
                 let errorCount = 0
                 let lastError = ''
@@ -125,10 +184,8 @@ export function AGIContent() {
                     const result = await sendToSkatteverket(report)
                     if (result.success) {
                         successCount++
-                        // Update status in local state
-                        setAgiReportsState(prev => prev.map(r =>
-                            r.period === report.period ? { ...r, status: "submitted" } : r
-                        ))
+                        // Update status in local state (would need to persist sending status somewhere)
+                        // For now just toast
                     } else {
                         errorCount++
                         lastError = result.aiReview?.errors?.[0]?.message || result.message
@@ -140,7 +197,7 @@ export function AGIContent() {
 
                 if (successCount > 0 && errorCount === 0) {
                     toast.success(
-                        "Rapporter skickade", 
+                        "Rapporter skickade",
                         `${successCount} AGI-rapport(er) skickades till Skatteverket. Se resultat i simulatorn.`
                     )
                 } else if (successCount > 0 && errorCount > 0) {
@@ -158,10 +215,33 @@ export function AGIContent() {
         },
         {
             id: "download",
-            label: "Ladda ner",
+            label: "Ladda ner XML",
             icon: Download,
             onClick: (ids) => {
-                toast.info("Laddar ner", `Förbereder nedladdning av ${ids.length} rapport(er)...`)
+                const reports = agiReportsState.filter(r => ids.includes(r.period))
+
+                reports.forEach(report => {
+                    const xml = generateAgiXML({
+                        period: report.period,
+                        orgNumber: company?.orgNumber || "556000-0000",
+                        totalSalary: report.totalSalary,
+                        tax: report.tax,
+                        contributions: report.contributions,
+                        employees: report.employees
+                    })
+
+                    const blob = new Blob([xml], { type: "text/xml" })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = `agi-${report.period.replace(/\s+/g, '-').toLowerCase()}.xml`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                })
+
+                toast.success("Nerladdat", `${ids.length} fil(er) har laddats ner.`)
                 setSelectedIds(new Set())
             },
         },
@@ -194,7 +274,6 @@ export function AGIContent() {
             employees: firstReport?.employees || 0,
         }
     }, [agiReportsState])
-
     // Filter reports based on search and status
     const filteredReports = useMemo(() => {
         return agiReportsState.filter(report => {

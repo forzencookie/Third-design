@@ -14,17 +14,17 @@
 // - Proper user isolation with userId parameter
 // ============================================
 
-import type { 
+import type {
   TransactionFilters,
-  ApiResponse, 
+  ApiResponse,
   PaginatedResponse,
   SortConfig,
 } from "@/types"
 import type { TransactionStatus } from "@/lib/status-types"
 import { TRANSACTION_STATUS_LABELS } from "@/lib/localization"
-import { 
-  mockTransactions, 
-  mockAISuggestions, 
+import {
+  mockTransactions,
+  mockAISuggestions,
   mockTransactionsWithAI,
   type Transaction,
   type TransactionWithAI,
@@ -109,18 +109,33 @@ function findTransaction(id: string): { index: number; transaction: TransactionW
 // Transaction Fetching Service
 // ============================================
 
+// ============================================
+// Transaction Fetching Service (API-backed)
+// ============================================
+
 export async function getTransactions(_userId?: string): Promise<ApiResponse<Transaction[]>> {
-  await delay(MOCK_DELAY)
-  
-  // In mock mode, userId is ignored. In production, use transactions-supabase.ts
-  return successResponse([...transactionState])
+  // Delegate to the main AI-enriched fetcher
+  const response = await getTransactionsWithAI(_userId);
+  if (response.success) {
+    return { ...response, data: response.data };
+  }
+  return { ...response, data: [] };
 }
 
 export async function getTransactionsWithAI(_userId?: string): Promise<ApiResponse<TransactionWithAI[]>> {
-  await delay(MOCK_DELAY)
-  
-  // In mock mode, userId is ignored. In production, use transactions-supabase.ts
-  return successResponse([...transactionState])
+  try {
+    // In production/simulator mode, fetch from our API which acts as the Ledger
+    const res = await fetch('/api/transactions', { cache: 'no-store' });
+    const json = await res.json();
+
+    if (!res.ok) throw new Error(json.error || 'Failed to fetch');
+
+    return successResponse(json.data);
+  } catch (err) {
+    console.error('Fetch transactions failed:', err);
+    // Fallback to empty or mock if API is unreachable (optional)
+    return errorResponse('Failed to load transactions', []);
+  }
 }
 
 export async function getTransactionsPaginated(
@@ -130,10 +145,11 @@ export async function getTransactionsPaginated(
   filters?: TransactionFilters,
   sort?: SortConfig<Transaction>
 ): Promise<PaginatedResponse<TransactionWithAI>> {
-  await delay(MOCK_DELAY)
-  
-  let filtered = [...transactionState]
-  
+  // Fetch ALL then paginate client/server side
+  // Ideally, the API should handle pagination. For Phase 1, we pull all and slice.
+  const response = await getTransactionsWithAI(_userId);
+  let filtered = response.data || [];
+
   // Apply filters
   if (filters) {
     if (filters.status?.length) {
@@ -147,14 +163,14 @@ export async function getTransactionsPaginated(
     }
     if (filters.searchQuery) {
       const query = filters.searchQuery.toLowerCase()
-      filtered = filtered.filter(t => 
+      filtered = filtered.filter(t =>
         t.name.toLowerCase().includes(query) ||
         t.category.toLowerCase().includes(query)
       )
     }
     if (filters.dateRange) {
-      filtered = filtered.filter(t => 
-        t.timestamp >= filters.dateRange!.start && 
+      filtered = filtered.filter(t =>
+        t.timestamp >= filters.dateRange!.start &&
         t.timestamp <= filters.dateRange!.end
       )
     }
@@ -165,8 +181,8 @@ export async function getTransactionsPaginated(
       )
     }
   }
-  
-  // Apply sorting (create new array to avoid mutating filtered)
+
+  // Apply sorting
   if (sort) {
     const direction = sort.direction === "asc" ? 1 : -1
     filtered = [...filtered].sort((a, b) => {
@@ -175,11 +191,11 @@ export async function getTransactionsPaginated(
       return compareValuesWithDirection(aVal, bVal, direction)
     })
   }
-  
+
   const start = (page - 1) * pageSize
   const end = start + pageSize
   const paginatedItems = filtered.slice(start, end)
-  
+
   return {
     data: paginatedItems,
     total: filtered.length,
@@ -190,15 +206,12 @@ export async function getTransactionsPaginated(
 }
 
 export async function getTransaction(id: string, _userId?: string): Promise<ApiResponse<TransactionWithAI | null>> {
-  await delay(MOCK_DELAY)
-  
-  const found = findTransaction(id)
-  
-  if (!found) {
-    return errorResponse("Transaction not found", null)
-  }
-  
-  return successResponse(found.transaction)
+  // Efficiency: Fetch all and find (since we don't have get-one endpoint yet)
+  const response = await getTransactionsWithAI(_userId);
+  const found = response.data?.find(t => t.id === id) || null;
+
+  if (!found) return errorResponse("Transaction not found", null);
+  return successResponse(found);
 }
 
 // ============================================
@@ -209,28 +222,35 @@ export async function getTransactionsByStatus(
   _userId: string,
   status: TransactionStatus
 ): Promise<ApiResponse<TransactionWithAI[]>> {
-  await delay(MOCK_DELAY)
-  
-  const filtered = transactionState.filter(t => t.status === status)
-  
-  return successResponse(filtered)
+  const response = await getTransactionsWithAI(_userId);
+  const filtered = (response.data || []).filter(t => t.status === status);
+  return successResponse(filtered);
 }
 
 export async function updateTransactionStatus(
-  id: string, 
+  id: string,
   _userId: string,
   status: TransactionStatus
 ): Promise<ApiResponse<TransactionWithAI | null>> {
-  await delay(MOCK_DELAY)
-  
-  const found = findTransaction(id)
-  if (!found) {
-    return errorResponseNull("Transaction not found")
+  try {
+    const res = await fetch(`/api/transactions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    const json = await res.json();
+
+    if (!res.ok) throw new Error(json.error);
+
+    // We might want to return the full updated object. 
+    // Current API returns just metadata. Let's re-fetch or reconstruct.
+    // Re-fetch is safest.
+    return getTransaction(id, _userId);
+
+  } catch (err) {
+    console.error('Update status failed:', err);
+    return errorResponseNull('Failed to update status');
   }
-  
-  transactionState[found.index] = { ...transactionState[found.index], status }
-  
-  return successResponse(transactionState[found.index])
 }
 
 // ============================================
@@ -239,30 +259,30 @@ export async function updateTransactionStatus(
 
 export async function getAISuggestion(transactionId: string): Promise<ApiResponse<AISuggestion | null>> {
   await delay(MOCK_DELAY)
-  
+
   // TODO: Replace with actual API call
   // const response = await fetch(`/api/transactions/${transactionId}/ai-suggestion`)
   // return response.json()
-  
+
   const suggestion = mockAISuggestions[transactionId] ?? null
-  
+
   return successResponse(suggestion)
 }
 
 export async function approveAISuggestion(transactionId: string): Promise<ApiResponse<TransactionWithAI | null>> {
   await delay(MOCK_DELAY)
-  
+
   // TODO: Replace with actual API call
   // const response = await fetch(`/api/transactions/${transactionId}/ai-suggestion/approve`, {
   //   method: 'POST',
   // })
   // return response.json()
-  
+
   const found = findTransaction(transactionId)
   if (!found) {
     return errorResponseNull("Transaction not found")
   }
-  
+
   const suggestion = found.transaction.aiSuggestion
   if (suggestion) {
     transactionState[found.index] = {
@@ -272,24 +292,24 @@ export async function approveAISuggestion(transactionId: string): Promise<ApiRes
       status: TRANSACTION_STATUS_LABELS.RECORDED,
     }
   }
-  
+
   return successResponse(transactionState[found.index])
 }
 
 export async function rejectAISuggestion(transactionId: string): Promise<ApiResponse<TransactionWithAI | null>> {
   await delay(MOCK_DELAY)
-  
+
   const found = findTransaction(transactionId)
   if (!found) {
     return errorResponseNull("Transaction not found")
   }
-  
+
   transactionState[found.index] = {
     ...transactionState[found.index],
     aiSuggestion: undefined,
     isAIApproved: false,
   }
-  
+
   return successResponse(transactionState[found.index])
 }
 
@@ -302,28 +322,32 @@ export async function updateTransaction(
   _userId: string,
   updates: Partial<Transaction>
 ): Promise<ApiResponse<TransactionWithAI | null>> {
-  await delay(MOCK_DELAY)
-  
-  const found = findTransaction(id)
-  if (!found) {
-    return errorResponseNull("Transaction not found")
+  try {
+    const res = await fetch(`/api/transactions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+
+    if (!res.ok) throw new Error('Failed to update');
+
+    return getTransaction(id, _userId);
+  } catch (err) {
+    console.error('Update transaction failed:', err);
+    return errorResponseNull('Failed to update transaction');
   }
-  
-  transactionState[found.index] = { ...transactionState[found.index], ...updates }
-  
-  return successResponse(transactionState[found.index])
 }
 
 export async function deleteTransaction(id: string, _userId?: string): Promise<ApiResponse<boolean>> {
   await delay(MOCK_DELAY)
-  
+
   const found = findTransaction(id)
   if (!found) {
     return errorResponse("Transaction not found", false)
   }
-  
+
   transactionState = transactionState.filter(t => t.id !== id)
-  
+
   return successResponse(true)
 }
 
@@ -337,9 +361,9 @@ export async function bulkUpdateStatus(
   status: TransactionStatus
 ): Promise<ApiResponse<TransactionWithAI[]>> {
   await delay(MOCK_DELAY)
-  
+
   const updated: TransactionWithAI[] = []
-  
+
   for (const id of ids) {
     const found = findTransaction(id)
     if (found) {
@@ -347,15 +371,15 @@ export async function bulkUpdateStatus(
       updated.push(transactionState[found.index])
     }
   }
-  
+
   return successResponse(updated)
 }
 
 export async function bulkApproveAISuggestions(ids: string[]): Promise<ApiResponse<TransactionWithAI[]>> {
   await delay(MOCK_DELAY)
-  
+
   const updated: TransactionWithAI[] = []
-  
+
   for (const id of ids) {
     const found = findTransaction(id)
     if (found?.transaction.aiSuggestion) {
@@ -369,7 +393,7 @@ export async function bulkApproveAISuggestions(ids: string[]): Promise<ApiRespon
       updated.push(transactionState[found.index])
     }
   }
-  
+
   return successResponse(updated)
 }
 
@@ -387,7 +411,7 @@ export interface TransactionStats {
 
 export async function getTransactionStats(_userId?: string): Promise<ApiResponse<TransactionStats>> {
   await delay(MOCK_DELAY)
-  
+
   const stats: TransactionStats = {
     total: transactionState.length,
     pending: transactionState.filter(t => t.status === TRANSACTION_STATUS_LABELS.TO_RECORD).length,
@@ -395,7 +419,7 @@ export async function getTransactionStats(_userId?: string): Promise<ApiResponse
     missingDocs: transactionState.filter(t => t.status === TRANSACTION_STATUS_LABELS.MISSING_DOCUMENTATION).length,
     ignored: transactionState.filter(t => t.status === TRANSACTION_STATUS_LABELS.IGNORED).length,
   }
-  
+
   return successResponse(stats)
 }
 

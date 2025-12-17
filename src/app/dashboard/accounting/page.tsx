@@ -30,6 +30,7 @@ import {
     Building2,
     List,
     RefreshCw,
+    Monitor,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -38,12 +39,13 @@ import { TRANSACTION_STATUS_LABELS } from "@/lib/localization"
 import {
     LazyTransactionsTable,
     LazyReceiptsTable,
-    LazyInvoicesTable,
     LazyVerifikationerTable
 } from "@/components/shared"
 import { useFeature } from "@/providers/company-provider"
-import { LeverantorsfakturorTable, type LeverantorsfakturorTableRef } from "@/components/invoices"
+import { SupplierInvoicesKanban, type SupplierInvoicesKanbanRef } from "@/components/expenses"
 import { Huvudbok } from "@/components/accounting"
+import { InventarierTable } from "@/components/assets"
+import { InvoicesKanban } from "@/components/revenue"
 import { useTextMode } from "@/providers/text-mode-provider"
 
 // Tab configuration with feature requirements and translations
@@ -84,6 +86,13 @@ const allTabs = [
         feature: 'verifikationer' as const, // Part of proper bookkeeping
     },
     {
+        id: "inventarier",
+        labelEnkel: "Inventarier",
+        labelAvancerad: "Anläggningsregister",
+        icon: Monitor,
+        feature: null,
+    },
+    {
         id: "huvudbok",
         labelEnkel: "Kontoöversikt",
         labelAvancerad: "Huvudbok",
@@ -101,7 +110,7 @@ function AccountingPageContent() {
     const currentTab = searchParams.get("tab") || "transaktioner"
 
     // Ref for supplier invoices table
-    const supplierInvoicesRef = useRef<LeverantorsfakturorTableRef>(null)
+    const supplierInvoicesRef = useRef<SupplierInvoicesKanbanRef>(null)
 
     // Fetch PROCESSED transactions from API
     const [apiTransactions, setApiTransactions] = useState<TransactionWithAI[]>([])
@@ -164,20 +173,33 @@ function AccountingPageContent() {
     const transactions = apiTransactions
 
     // Handle transaction booking - update the transaction status
-    const handleTransactionBooked = useCallback((transactionId: string, bookingData: { category: string; debitAccount: string; creditAccount: string }) => {
-        setApiTransactions(prev =>
-            prev.map(t =>
-                t.id === transactionId
-                    ? {
-                        ...t,
-                        status: TRANSACTION_STATUS_LABELS.RECORDED,
-                        category: bookingData.category,
-                        account: `${bookingData.debitAccount} / ${bookingData.creditAccount}`,
-                    }
-                    : t
+    const handleTransactionBooked = useCallback(async (transactionId: string, bookingData: { category: string; debitAccount: string; creditAccount: string; description?: string }) => {
+        try {
+            const response = await fetch(`/api/transactions/${transactionId}/book`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bookingData)
+            })
+
+            if (!response.ok) throw new Error('Failed to book')
+
+            setApiTransactions(prev =>
+                prev.map(t =>
+                    t.id === transactionId
+                        ? {
+                            ...t,
+                            status: TRANSACTION_STATUS_LABELS.RECORDED,
+                            category: bookingData.category,
+                            account: `${bookingData.debitAccount} / ${bookingData.creditAccount}`,
+                        }
+                        : t
+                )
             )
-        )
-        toast.success('Transaktion bokförd', `Bokförd på konto ${bookingData.debitAccount}`)
+            toast.success('Transaktion bokförd', `Bokförd på konto ${bookingData.debitAccount}`)
+        } catch (err) {
+            console.error(err)
+            toast.error('Fel vid bokföring', 'Kunde inte bokföra transaktionen')
+        }
     }, [toast])
 
     // Feature checks for conditional tabs
@@ -298,10 +320,10 @@ function AccountingPageContent() {
                             />
                         )}
                         {currentTab === "kundfakturor" && (
-                            <LazyInvoicesTable />
+                            <InvoicesKanban />
                         )}
                         {currentTab === "leverantorsfakturor" && (
-                            <LeverantorsfakturorTable ref={supplierInvoicesRef} />
+                            <SupplierInvoicesKanban ref={supplierInvoicesRef} />
                         )}
                         {currentTab === "kvitton" && (
                             <LazyReceiptsTable />
@@ -313,6 +335,9 @@ function AccountingPageContent() {
                         )}
                         {currentTab === "huvudbok" && (
                             <Huvudbok />
+                        )}
+                        {currentTab === "inventarier" && (
+                            <InventarierTable />
                         )}
                     </div>
                 </div>

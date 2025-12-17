@@ -1,21 +1,22 @@
 "use client"
 
-import { 
-    PieChart, 
+import {
+    PieChart,
     BarChart3,
     TrendingUp,
     Wallet,
     Shield,
     Droplets,
 } from "lucide-react"
-import { 
-    Tooltip, 
-    TooltipContent, 
-    TooltipTrigger, 
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Card } from "@/components/ui/card"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
 import { monthlyRevenue, expenseCategories } from "./constants"
+import { useFinancialMetrics, type MonthlyMetric, type ExpenseCategory, type KPI } from "@/hooks/use-financial-metrics"
 
 // Map icon names to actual icons
 const kpiIcons = {
@@ -50,13 +51,37 @@ const barColors = [
 ]
 
 export function ForetagsstatistikContent() {
-    const maxRevenue = Math.max(...monthlyRevenue.map(m => m.revenue))
+    const { monthlyMetrics, kpis: liveKpis, expenseDistribution, isLoading } = useFinancialMetrics()
+
+    // Fallback/Empty state handling if no data yet (optional, or just show 0s)
+    // Ensure fallback data matches MonthlyMetric interface
+    const fallbackMetrics: MonthlyMetric[] = monthlyRevenue.map(m => ({
+        ...m,
+        accumulatedProfit: 0 // Add missing property
+    }))
+
+    const displayMetrics = monthlyMetrics.length > 0 ? monthlyMetrics : fallbackMetrics
+    const maxRevenue = Math.max(...displayMetrics.map(m => m.revenue)) || 1 // Avoid divide by zero
+
+    // Map live KPIs to icons
+    const displayKpis: (KPI & { icon: any })[] = liveKpis.length > 0 ? [
+        { ...liveKpis[0], icon: TrendingUp }, // Omsättning
+        { ...liveKpis[1], icon: Wallet },     // Resultat
+        { ...liveKpis[2], icon: Shield },     // Soliditet
+        { ...liveKpis[3], icon: Droplets },   // Likviditet/Vinstmarginal mapping
+    ] : kpis.map(k => ({ ...k, raw: 0 })) // Add 'raw' property to fallback to match interface
+
+    const displayExpenses = expenseDistribution.length > 0 ? expenseDistribution : expenseCategories
+
+    if (isLoading) {
+        return <div className="p-12 text-center text-muted-foreground">Laddar statistik...</div>
+    }
 
     return (
         <main className="flex-1 flex flex-col p-6">
             <div className="max-w-6xl w-full space-y-6">
                 <StatCardGrid columns={4}>
-                    {kpis.map((kpi) => (
+                    {displayKpis.map((kpi) => (
                         <StatCard
                             key={kpi.label}
                             label={kpi.label}
@@ -76,19 +101,21 @@ export function ForetagsstatistikContent() {
                             <BarChart3 className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div className="flex items-end gap-1 flex-1 min-h-[144px]">
-                            {monthlyRevenue.map((m, index) => {
+                            {displayMetrics.map((m: MonthlyMetric, index: number) => {
                                 const colors = barColors[index % barColors.length]
+                                const heightPercentage = maxRevenue > 0 ? (m.revenue / maxRevenue) * 100 : 0
+
                                 return (
                                     <Tooltip key={m.month}>
                                         <TooltipTrigger asChild>
                                             <div
                                                 className="flex-1 flex flex-col rounded-t-lg min-h-[4px] overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                                                style={{ height: `${(m.revenue / maxRevenue) * 100}%` }}
+                                                style={{ height: `${Math.max(heightPercentage, 2)}%` }} // Min height for visibility
                                             >
                                                 {/* Striped top portion */}
-                                                <div 
+                                                <div
                                                     className="flex-[2]"
-                                                    style={{ 
+                                                    style={{
                                                         background: `repeating-linear-gradient(
                                                             -45deg,
                                                             ${colors.solid},
@@ -99,19 +126,19 @@ export function ForetagsstatistikContent() {
                                                     }}
                                                 />
                                                 {/* Solid bottom portion with rounded top */}
-                                                <div 
-                                                    className="flex-[3] rounded-t-lg -mt-2 relative z-10" 
+                                                <div
+                                                    className="flex-[3] rounded-t-lg -mt-2 relative z-10"
                                                     style={{ backgroundColor: colors.solid }}
                                                 />
                                             </div>
                                         </TooltipTrigger>
-                                        <TooltipContent 
-                                            side="top" 
+                                        <TooltipContent
+                                            side="top"
                                             className="bg-white dark:bg-neutral-900 shadow-lg rounded-lg p-3 border-2 border-dashed"
                                             style={{ borderColor: colors.solid }}
                                         >
                                             <div>
-                                                <p className="font-medium text-xs mb-2" style={{ color: colors.solid }}>{m.month} 2024</p>
+                                                <p className="font-medium text-xs mb-2" style={{ color: colors.solid }}>{m.month}</p>
                                                 <div className="space-y-1.5 text-xs">
                                                     <div className="flex justify-between gap-4">
                                                         <span className="text-muted-foreground">Intäkter</span>
@@ -123,7 +150,9 @@ export function ForetagsstatistikContent() {
                                                     </div>
                                                     <div className="border-t border-dashed pt-1.5 mt-1.5 flex justify-between gap-4" style={{ borderColor: colors.solid }}>
                                                         <span className="text-muted-foreground">Resultat</span>
-                                                        <span className="font-semibold text-green-600 dark:text-green-500/70 whitespace-nowrap">+{m.profit?.toLocaleString("sv-SE") || 0} kr</span>
+                                                        <span className="font-semibold text-green-600 dark:text-green-500/70 whitespace-nowrap">
+                                                            {m.profit > 0 ? "+" : ""}{m.profit?.toLocaleString("sv-SE") || 0} kr
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -133,8 +162,8 @@ export function ForetagsstatistikContent() {
                             })}
                         </div>
                         <div className="flex gap-1 mt-2">
-                            {monthlyRevenue.map((m) => (
-                                <span key={m.month} className="flex-1 text-xs text-muted-foreground text-center">{m.month}</span>
+                            {displayMetrics.map((m: MonthlyMetric) => (
+                                <span key={m.month} className="flex-1 text-xs text-muted-foreground text-center capitalize">{m.month}</span>
                             ))}
                         </div>
                     </Card>
@@ -145,7 +174,9 @@ export function ForetagsstatistikContent() {
                             <PieChart className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div className="space-y-3">
-                            {expenseCategories.map((cat) => (
+                            {displayExpenses.length === 0 ? (
+                                <div className="text-center text-muted-foreground py-8 text-sm">Inga kostnader registrerade</div>
+                            ) : displayExpenses.map((cat: ExpenseCategory) => (
                                 <div key={cat.category}>
                                     <div className="flex items-center justify-between text-sm mb-1">
                                         <span>{cat.category}</span>
@@ -168,22 +199,12 @@ export function ForetagsstatistikContent() {
                         <h2 className="font-medium">Nyckeltal</h2>
                     </div>
                     <div className="grid grid-cols-4 divide-x-2 divide-border/60">
-                        <div className="p-4 text-center">
-                            <p className="text-sm text-muted-foreground">Vinstmarginal</p>
-                            <p className="text-xl font-semibold mt-1">20,5%</p>
-                        </div>
-                        <div className="p-4 text-center">
-                            <p className="text-sm text-muted-foreground">Avkastning på EK</p>
-                            <p className="text-xl font-semibold mt-1">28,3%</p>
-                        </div>
-                        <div className="p-4 text-center">
-                            <p className="text-sm text-muted-foreground">Skuldsättningsgrad</p>
-                            <p className="text-xl font-semibold mt-1">0,8</p>
-                        </div>
-                        <div className="p-4 text-center">
-                            <p className="text-sm text-muted-foreground">Rörelsekapital</p>
-                            <p className="text-xl font-semibold mt-1">245 tkr</p>
-                        </div>
+                        {displayKpis.map((kpi) => (
+                            <div key={kpi.label} className="p-4 text-center">
+                                <p className="text-sm text-muted-foreground">{kpi.label}</p>
+                                <p className="text-xl font-semibold mt-1">{kpi.value}</p>
+                            </div>
+                        ))}
                     </div>
                 </Card>
             </div>

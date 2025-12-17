@@ -67,7 +67,7 @@ export function UploadDropzone({
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
-    
+
     if (disabled) return
 
     const files = Array.from(e.dataTransfer.files)
@@ -77,7 +77,7 @@ export function UploadDropzone({
         const acceptedTypes = accept.split(',').map(t => t.trim())
         const fileType = file.type
         const fileExt = `.${file.name.split('.').pop()}`
-        return acceptedTypes.some(t => 
+        return acceptedTypes.some(t =>
           t === fileType || t === fileExt || t === '*/*'
         )
       }
@@ -114,8 +114,8 @@ export function UploadDropzone({
     <div
       className={cn(
         "border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer flex flex-col items-center justify-center",
-        isDragOver 
-          ? "border-primary bg-primary/5" 
+        isDragOver
+          ? "border-primary bg-primary/5"
           : "border-border hover:border-primary/50",
         disabled && "opacity-50 cursor-not-allowed",
         className
@@ -135,13 +135,13 @@ export function UploadDropzone({
         onChange={handleFileChange}
         className="hidden"
       />
-      
+
       {isUploading ? (
         <Loader2 className="h-8 w-8 text-muted-foreground mb-2 animate-spin" />
       ) : (
         icon || <UploadCloud className="h-8 w-8 text-muted-foreground mb-2" />
       )}
-      
+
       <p className="text-sm text-muted-foreground">
         {title}
       </p>
@@ -157,7 +157,9 @@ export function UploadDropzone({
 // ============================================================================
 
 export interface FilePreviewProps extends React.HTMLAttributes<HTMLDivElement> {
-  file: File
+  file?: File | null
+  fileName?: string
+  fileSize?: number
   onRemove?: () => void
   isUploading?: boolean
   progress?: number
@@ -166,12 +168,18 @@ export interface FilePreviewProps extends React.HTMLAttributes<HTMLDivElement> {
 export function FilePreview({
   className,
   file,
+  fileName,
+  fileSize,
   onRemove,
   isUploading = false,
   progress,
   ...props
 }: FilePreviewProps) {
+  const name = fileName || file?.name || "Fil"
+  const size = fileSize || file?.size || 0
+
   const formatSize = (bytes: number) => {
+    if (bytes === 0) return ""
     if (bytes >= 1024 * 1024) {
       return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     }
@@ -187,23 +195,23 @@ export function FilePreview({
       {...props}
     >
       <File className="h-8 w-8 text-muted-foreground shrink-0" />
-      
+
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{file.name}</p>
+        <p className="text-sm font-medium truncate">{name}</p>
         <p className="text-xs text-muted-foreground">
-          {formatSize(file.size)}
+          {formatSize(size)}
           {isUploading && progress !== undefined && ` • ${progress}%`}
         </p>
         {isUploading && progress !== undefined && (
           <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-primary transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
         )}
       </div>
-      
+
       {onRemove && !isUploading && (
         <Button
           type="button"

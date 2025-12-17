@@ -1,23 +1,30 @@
 "use client"
 
-import { useState } from "react"
+/**
+ * Momsdeklaration Detail Dialog
+ * 
+ * Complete VAT declaration dialog with:
+ * - Edit tab: All rutor (fields) editable, organized by section
+ * - Preview tab: Official SKV 4700 document layout
+ * - Download XML button
+ * - Send button (placeholder for future API)
+ */
+
+import { useState, useEffect } from "react"
 import {
     Calendar,
-    Wallet,
     Send,
     Download,
     Edit,
-    Save,
-    X,
+    Eye,
     FileText,
-    Building2,
-    CreditCard,
-    Info
+    Info,
+    ChevronDown,
+    ChevronUp,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { AppStatusBadge } from "@/components/ui/status-badge"
 import {
     Dialog,
@@ -26,9 +33,11 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog"
-import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import type { VatReport } from "@/lib/vat-processor"
+import { VatReport, recalculateVatReport } from "@/lib/vat-processor"
+import { downloadVatXML, defaultCompanyInfo } from "@/lib/vat-xml-export"
+import { MomsPreview } from "./moms-preview"
 
 interface MomsDetailDialogProps {
     report: VatReport | null
@@ -37,49 +46,153 @@ interface MomsDetailDialogProps {
     onSave?: (report: VatReport) => void
 }
 
-function FormRow({
-    code,
-    label,
-    value,
-    editable,
-    onChange,
-    highlight = false
-}: {
+// Field definition for rendering
+interface FieldDef {
     code: string
+    key: keyof VatReport
     label: string
+    tooltip?: string
+}
+
+// Section definitions
+const SECTION_A: FieldDef[] = [
+    { code: "05", key: "ruta05", label: "Momspliktig försäljning 25%", tooltip: "Försäljning exkl. moms med 25% momssats" },
+    { code: "06", key: "ruta06", label: "Momspliktig försäljning 12%", tooltip: "Försäljning exkl. moms med 12% momssats (hotell, livsmedel)" },
+    { code: "07", key: "ruta07", label: "Momspliktig försäljning 6%", tooltip: "Försäljning exkl. moms med 6% momssats (böcker, kultur)" },
+    { code: "08", key: "ruta08", label: "Hyresinkomster vid frivillig skattskyldighet", tooltip: "Uthyrning av lokaler där du valt att bli momspliktig" },
+]
+
+const SECTION_B: FieldDef[] = [
+    { code: "10", key: "ruta10", label: "Utgående moms 25%", tooltip: "25% moms på din försäljning" },
+    { code: "11", key: "ruta11", label: "Utgående moms 12%", tooltip: "12% moms på din försäljning" },
+    { code: "12", key: "ruta12", label: "Utgående moms 6%", tooltip: "6% moms på din försäljning" },
+]
+
+const SECTION_C: FieldDef[] = [
+    { code: "20", key: "ruta20", label: "Inköp av varor från annat EU-land", tooltip: "EU-inköp av varor (omvänd skattskyldighet)" },
+    { code: "21", key: "ruta21", label: "Inköp av tjänster från annat EU-land", tooltip: "EU-inköp av tjänster (omvänd skattskyldighet)" },
+    { code: "22", key: "ruta22", label: "Inköp av tjänster utanför EU", tooltip: "Inköp från länder utanför EU (omvänd skattskyldighet)" },
+    { code: "23", key: "ruta23", label: "Inköp av varor i Sverige", tooltip: "Svenska inköp där köparen är skattskyldig" },
+    { code: "24", key: "ruta24", label: "Övriga inköp av tjänster", tooltip: "Andra omvända tjänsteinköp" },
+]
+
+const SECTION_D: FieldDef[] = [
+    { code: "30", key: "ruta30", label: "Utgående moms 25%", tooltip: "25% moms på omvänd skattskyldighet" },
+    { code: "31", key: "ruta31", label: "Utgående moms 12%", tooltip: "12% moms på omvänd skattskyldighet" },
+    { code: "32", key: "ruta32", label: "Utgående moms 6%", tooltip: "6% moms på omvänd skattskyldighet" },
+]
+
+const SECTION_E: FieldDef[] = [
+    { code: "35", key: "ruta35", label: "Försäljning till annat EU-land", tooltip: "Varuförsäljning till andra EU-länder (0% moms)" },
+    { code: "36", key: "ruta36", label: "Försäljning utanför EU", tooltip: "Export utanför EU" },
+    { code: "37", key: "ruta37", label: "Mellanmans inköp vid trepartshandel", tooltip: "Som mellanman vid trepartshandel" },
+    { code: "38", key: "ruta38", label: "Mellanmans försäljning vid trepartshandel", tooltip: "Försäljning som mellanman" },
+    { code: "39", key: "ruta39", label: "Försäljning av tjänster till EU", tooltip: "Tjänsteförsäljning till EU (huvudregeln)" },
+    { code: "40", key: "ruta40", label: "Övrig försäljning utanför Sverige", tooltip: "Andra tjänster utanför Sverige" },
+    { code: "41", key: "ruta41", label: "Försäljning där köparen är skattskyldig", tooltip: "Köparen betalar momsen (reverse charge)" },
+    { code: "42", key: "ruta42", label: "Övrig momsfri försäljning", tooltip: "Annan momsfri omsättning" },
+]
+
+const SECTION_F: FieldDef[] = [
+    { code: "48", key: "ruta48", label: "Ingående moms att dra av", tooltip: "Total ingående moms du får dra av" },
+]
+
+const SECTION_H: FieldDef[] = [
+    { code: "50", key: "ruta50", label: "Beskattningsunderlag vid import", tooltip: "Värde på importerade varor" },
+    { code: "60", key: "ruta60", label: "Utgående moms på import 25%", tooltip: "25% importmoms" },
+    { code: "61", key: "ruta61", label: "Utgående moms på import 12%", tooltip: "12% importmoms" },
+    { code: "62", key: "ruta62", label: "Utgående moms på import 6%", tooltip: "6% importmoms" },
+]
+
+// Editable field row component
+function EditableField({
+    field,
+    value,
+    onChange,
+    disabled = false,
+}: {
+    field: FieldDef
     value: number
-    editable: boolean
-    onChange?: (val: number) => void
-    highlight?: boolean
+    onChange: (value: number) => void
+    disabled?: boolean
 }) {
     return (
-        <div className={cn(
-            "grid grid-cols-[3rem_1fr_10rem] gap-4 items-center p-3 border-b last:border-0",
-            highlight && "bg-muted/30"
-        )}>
-            <div className="font-mono font-bold text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5 text-center text-sm border">
-                {code}
+        <div className="grid grid-cols-[3rem_1fr_8rem] gap-3 items-center py-2 border-b last:border-0">
+            <div className="font-mono font-bold text-muted-foreground bg-muted/50 rounded px-2 py-1 text-center text-sm border">
+                {field.code}
             </div>
-            <div className="text-sm font-medium">
-                {label}
-            </div>
-            <div className="text-right">
-                {editable && onChange ? (
-                    <Input
-                        type="number"
-                        className="text-right h-8"
-                        value={value}
-                        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-                    />
-                ) : (
-                    <span className={cn(
-                        "font-mono font-medium",
-                        highlight && "text-base"
-                    )}>
-                        {Math.floor(value).toLocaleString("sv-SE")}
-                    </span>
+            <div className="text-sm">
+                <div className="font-medium">{field.label}</div>
+                {field.tooltip && (
+                    <div className="text-xs text-muted-foreground">{field.tooltip}</div>
                 )}
             </div>
+            <Input
+                type="number"
+                className="text-right h-9 font-mono"
+                value={value || ""}
+                onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+                disabled={disabled}
+                placeholder="0"
+            />
+        </div>
+    )
+}
+
+// Collapsible section component
+function Section({
+    title,
+    subtitle,
+    fields,
+    report,
+    onChange,
+    defaultOpen = true,
+}: {
+    title: string
+    subtitle?: string
+    fields: FieldDef[]
+    report: VatReport
+    onChange: (key: keyof VatReport, value: number) => void
+    defaultOpen?: boolean
+}) {
+    const [isOpen, setIsOpen] = useState(defaultOpen)
+    const hasValues = fields.some(f => (report[f.key] as number) > 0)
+
+    return (
+        <div className="border rounded-lg overflow-hidden">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={cn(
+                    "w-full flex items-center justify-between px-4 py-3 text-left",
+                    "bg-muted/30 hover:bg-muted/50 transition-colors",
+                    hasValues && "bg-primary/5"
+                )}
+            >
+                <div>
+                    <div className="font-semibold text-sm">{title}</div>
+                    {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+                </div>
+                <div className="flex items-center gap-2">
+                    {hasValues && (
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                            Ifylld
+                        </span>
+                    )}
+                    {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </div>
+            </button>
+            {isOpen && (
+                <div className="p-4 space-y-1">
+                    {fields.map(field => (
+                        <EditableField
+                            key={field.code}
+                            field={field}
+                            value={report[field.key] as number}
+                            onChange={(value) => onChange(field.key, value)}
+                        />
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
@@ -90,64 +203,34 @@ export function MomsDetailDialog({
     onOpenChange,
     onSave,
 }: MomsDetailDialogProps) {
-    const [isEditing, setIsEditing] = useState(false)
     const [editedReport, setEditedReport] = useState<VatReport | null>(null)
+    const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit")
     const [isExpanded, setIsExpanded] = useState(false)
 
-    if (!report) return null
+    // Sync editedReport with report prop
+    useEffect(() => {
+        if (report) {
+            setEditedReport({ ...report })
+        }
+    }, [report])
 
-    const currentReport = editedReport || report
+    if (!report || !editedReport) return null
 
-    const handleEdit = () => {
-        setEditedReport({ ...report })
-        setIsEditing(true)
+    const handleFieldChange = (key: keyof VatReport, value: number) => {
+        const updated = { ...editedReport, [key]: value }
+        // Recalculate derived fields
+        setEditedReport(recalculateVatReport(updated))
     }
 
     const handleSave = () => {
         if (editedReport && onSave) {
             onSave(editedReport)
         }
-        setIsEditing(false)
-        setEditedReport(null)
+        onOpenChange(false)
     }
 
-    const handleCancel = () => {
-        setIsEditing(false)
-        setEditedReport(null)
-    }
-
-    const updateField = (field: keyof VatReport, value: number) => {
-        if (!editedReport) return
-
-        const updated = { ...editedReport, [field]: value }
-
-        // Recalculate derived fields if necessary
-        // In the form: Net = Output - Input
-        // If we edit the Net box directly, it's just a manual override, but usually implies calc
-
-        if (field === 'ruta10' || field === 'ruta48') {
-            // Basic recalc: Net = Ruta 10 + Ruta 11 + Ruta 12 - Ruta 48
-            // (Assuming 11/12 are 0 for now)
-            updated.salesVat = updated.ruta10
-            updated.inputVat = updated.ruta48
-            updated.ruta49 = updated.ruta10 - updated.ruta48
-            updated.netVat = updated.ruta49
-
-            // Also update sales base approximate
-            if (field === 'ruta10') {
-                updated.ruta05 = updated.ruta10 * 4
-            }
-        }
-        if (field === 'ruta05') {
-            // If base changes, update tax? Usually goes other way in manual entry 
-            // but let's assume auto-calc 25%
-            updated.ruta10 = updated.ruta05 * 0.25
-            updated.salesVat = updated.ruta10
-            updated.ruta49 = updated.ruta10 - updated.ruta48
-            updated.netVat = updated.ruta49
-        }
-
-        setEditedReport(updated)
+    const handleDownloadXML = () => {
+        downloadVatXML(editedReport, defaultCompanyInfo)
     }
 
     return (
@@ -155,7 +238,7 @@ export function MomsDetailDialog({
             <DialogContent
                 expandable
                 onExpandedChange={setIsExpanded}
-                className="max-w-3xl"
+                className="max-w-4xl"
             >
                 <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4 pr-16 bg-yellow-50/50 dark:bg-yellow-950/10 -mx-6 -mt-6 p-6 border-b border-yellow-100 dark:border-yellow-900/30">
                     <div className="flex items-center gap-4">
@@ -167,141 +250,164 @@ export function MomsDetailDialog({
                                 Momsdeklaration
                             </DialogTitle>
                             <DialogDescription className="text-yellow-700 dark:text-yellow-500">
-                                {currentReport.period} • Deadline: {currentReport.dueDate}
+                                {editedReport.period} • Deadline: {editedReport.dueDate}
                             </DialogDescription>
                         </div>
                     </div>
-                    <AppStatusBadge
-                        status={currentReport.status === "upcoming" ? "Kommande" : "Inskickad"}
-                    />
+                    <div className="flex items-center gap-3">
+                        <div className="text-right mr-2">
+                            <div className="text-xs text-muted-foreground">Att betala</div>
+                            <div className={cn(
+                                "text-lg font-bold font-mono",
+                                editedReport.ruta49 >= 0 ? "text-amber-600" : "text-green-600"
+                            )}>
+                                {editedReport.ruta49 >= 0 ? "+" : ""}{formatCurrency(editedReport.ruta49)}
+                            </div>
+                        </div>
+                        <AppStatusBadge
+                            status={editedReport.status === "upcoming" ? "Kommande" : "Inskickad"}
+                        />
+                    </div>
                 </DialogHeader>
 
-                <div className={cn(
-                    "space-y-6 overflow-y-auto pt-4",
-                    isExpanded ? "max-h-[calc(90vh-200px)]" : "max-h-[60vh]"
-                )}>
-                    {/* The Form */}
-                    <div className="border rounded-lg bg-card shadow-sm overflow-hidden">
-                        {/* Section A: Sales */}
-                        <div className="bg-muted/10 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b flex justify-between">
-                            <span>A. Försäljning m.m.</span>
-                            <span>Belopp (kr)</span>
-                        </div>
-                        <FormRow
-                            code="05"
-                            label="Momspliktig försäljning som inte ingår i ruta 06, 07 eller 08"
-                            value={currentReport.ruta05 || 0}
-                            editable={isEditing}
-                            onChange={(val) => updateField('ruta05', val)}
-                        />
+                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "edit" | "preview")} className="mt-4">
+                    <TabsList className="grid w-full grid-cols-2 mb-4">
+                        <TabsTrigger value="edit" className="gap-2">
+                            <Edit className="h-4 w-4" />
+                            Redigera
+                        </TabsTrigger>
+                        <TabsTrigger value="preview" className="gap-2">
+                            <Eye className="h-4 w-4" />
+                            Förhandsgranska
+                        </TabsTrigger>
+                    </TabsList>
 
-                        {/* Section B: Output VAT */}
-                        <div className="bg-muted/10 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-y flex justify-between mt-4">
-                            <span>B. Utgående moms</span>
-                            <span>Moms (kr)</span>
-                        </div>
-                        <FormRow
-                            code="10"
-                            label="Utgående moms 25%"
-                            value={currentReport.ruta10 || 0}
-                            editable={isEditing}
-                            onChange={(val) => updateField('ruta10', val)}
-                        />
-                        {/* Placeholders for 12% and 6% */}
-                        {isExpanded && (
-                            <>
-                                <FormRow code="11" label="Utgående moms 12%" value={0} editable={false} />
-                                <FormRow code="12" label="Utgående moms 6%" value={0} editable={false} />
-                            </>
+                    <TabsContent
+                        value="edit"
+                        className={cn(
+                            "space-y-4 overflow-y-auto",
+                            isExpanded ? "max-h-[calc(90vh-280px)]" : "max-h-[50vh]"
                         )}
-
-                        {/* Section C: Input VAT */}
-                        <div className="bg-muted/10 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-y flex justify-between mt-4">
-                            <span>C. Ingående moms</span>
-                            <span>Moms (kr)</span>
-                        </div>
-                        <FormRow
-                            code="48"
-                            label="Ingående moms att dra av"
-                            value={currentReport.ruta48 || 0}
-                            editable={isEditing}
-                            onChange={(val) => updateField('ruta48', val)}
+                    >
+                        <Section
+                            title="A. Momspliktig försäljning"
+                            subtitle="Försäljning och uttag exklusive moms"
+                            fields={SECTION_A}
+                            report={editedReport}
+                            onChange={handleFieldChange}
                         />
 
-                        {/* Section D: Result */}
-                        <div className="bg-muted/10 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-y flex justify-between mt-4">
-                            <span>D. Moms att betala eller få tillbaka</span>
-                            <span>Belopp (kr)</span>
-                        </div>
-                        <FormRow
-                            code="49"
-                            label={currentReport.ruta49 >= 0 ? "Att betala" : "Att få tillbaka"}
-                            value={Math.abs(currentReport.ruta49 || 0)}
-                            editable={false} // Calculated
-                            highlight
+                        <Section
+                            title="B. Utgående moms på försäljning"
+                            subtitle="Moms som du tar ut av dina kunder"
+                            fields={SECTION_B}
+                            report={editedReport}
+                            onChange={handleFieldChange}
                         />
-                    </div>
 
-                    <div className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-3 rounded border border-blue-100 dark:border-blue-900/30">
-                        <Info className="h-4 w-4 text-blue-500 mt-0.5" />
-                        <p>
-                            Detta är en förhandsvisning av uppgifterna som kommer att skickas till Skatteverket.
-                            Kontrollera att alla belopp stämmer med din bokföring.
-                        </p>
-                    </div>
+                        <Section
+                            title="C. Momspliktiga inköp vid omvänd skattskyldighet"
+                            subtitle="EU-handel och import där du redovisar momsen"
+                            fields={SECTION_C}
+                            report={editedReport}
+                            onChange={handleFieldChange}
+                            defaultOpen={false}
+                        />
 
-                    {/* Payment Info in Expanded */}
-                    {isExpanded && currentReport.ruta49 > 0 && (
-                        <div className="border rounded-lg p-4 bg-muted/5 space-y-3">
-                            <h4 className="font-semibold text-sm flex items-center gap-2">
-                                <CreditCard className="h-4 w-4" /> Betalningsuppgifter
-                            </h4>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
+                        <Section
+                            title="D. Utgående moms på inköp (C)"
+                            subtitle="Moms på inköp med omvänd skattskyldighet"
+                            fields={SECTION_D}
+                            report={editedReport}
+                            onChange={handleFieldChange}
+                            defaultOpen={false}
+                        />
+
+                        <Section
+                            title="E. Försäljning undantagen från moms"
+                            subtitle="Export, EU-handel och momsfri omsättning"
+                            fields={SECTION_E}
+                            report={editedReport}
+                            onChange={handleFieldChange}
+                            defaultOpen={false}
+                        />
+
+                        <Section
+                            title="F. Ingående moms"
+                            subtitle="Moms du betalat på inköp som du får dra av"
+                            fields={SECTION_F}
+                            report={editedReport}
+                            onChange={handleFieldChange}
+                        />
+
+                        <Section
+                            title="H. Import"
+                            subtitle="Beskattningsunderlag och moms vid import"
+                            fields={SECTION_H}
+                            report={editedReport}
+                            onChange={handleFieldChange}
+                            defaultOpen={false}
+                        />
+
+                        {/* Result summary */}
+                        <div className="border-2 border-primary/30 rounded-lg p-4 bg-primary/5">
+                            <div className="flex justify-between items-center">
                                 <div>
-                                    <span className="text-muted-foreground">Bankgiro:</span>
-                                    <span className="font-mono ml-2">5050-1055</span>
+                                    <div className="font-semibold">G. Moms att betala eller få tillbaka</div>
+                                    <div className="text-sm text-muted-foreground">
+                                        Ruta 49 = Utgående moms - Ingående moms
+                                    </div>
                                 </div>
-                                <div>
-                                    <span className="text-muted-foreground">OCR:</span>
-                                    <span className="font-mono ml-2">123456789</span>
+                                <div className="text-right">
+                                    <div className="text-2xl font-bold font-mono">
+                                        {formatCurrency(Math.abs(editedReport.ruta49))}
+                                    </div>
+                                    <div className={cn(
+                                        "text-sm font-medium",
+                                        editedReport.ruta49 >= 0 ? "text-amber-600" : "text-green-600"
+                                    )}>
+                                        {editedReport.ruta49 >= 0 ? "Att betala" : "Att få tillbaka"}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    )}
 
-                </div>
+                        <div className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-3 rounded border border-blue-100 dark:border-blue-900/30">
+                            <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                            <p>
+                                Alla fält beräknas automatiskt från din bokföring men kan redigeras manuellt.
+                                Klicka på "Förhandsgranska" för att se hur deklarationen ser ut i officiellt format.
+                            </p>
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent
+                        value="preview"
+                        className={cn(
+                            "overflow-y-auto flex justify-center",
+                            isExpanded ? "max-h-[calc(90vh-280px)]" : "max-h-[50vh]"
+                        )}
+                    >
+                        <MomsPreview report={editedReport} />
+                    </TabsContent>
+                </Tabs>
 
                 <div className="flex items-center justify-between pt-4 border-t mt-4">
                     <div className="flex items-center gap-2">
-                        {isEditing ? (
-                            <>
-                                <Button onClick={handleSave} className="gap-2">
-                                    <Save className="h-4 w-4" />
-                                    Spara ändringar
-                                </Button>
-                                <Button variant="outline" onClick={handleCancel} className="gap-2">
-                                    <X className="h-4 w-4" />
-                                    Avbryt
-                                </Button>
-                            </>
-                        ) : (
-                            <>
-                                <Button variant="outline" onClick={handleEdit} className="gap-2">
-                                    <Edit className="h-4 w-4" />
-                                    Redigera
-                                </Button>
-                                <Button variant="outline" className="gap-2">
-                                    <Download className="h-4 w-4" />
-                                    Ladda ner PDF
-                                </Button>
-                            </>
-                        )}
+                        <Button variant="outline" onClick={handleDownloadXML} className="gap-2">
+                            <Download className="h-4 w-4" />
+                            Ladda ner XML
+                        </Button>
+                        <Button variant="outline" onClick={handleSave} className="gap-2">
+                            <FileText className="h-4 w-4" />
+                            Spara
+                        </Button>
                     </div>
 
-                    {currentReport.status === "upcoming" && !isEditing && (
+                    {editedReport.status === "upcoming" && (
                         <Button className="gap-2 bg-yellow-500 hover:bg-yellow-600 text-black border-yellow-600">
                             <Send className="h-4 w-4" />
-                            Signera och skicka
+                            Skicka till Skatteverket
                         </Button>
                     )}
                 </div>

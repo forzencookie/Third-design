@@ -48,52 +48,64 @@ import { MomsWizardDialog } from "./ai-wizard-dialog"
 import { MomsDetailDialog } from "./moms-detail-dialog"
 import { termExplanations } from "./constants"
 import { VatProcessor, type VatReport } from "@/lib/vat-processor"
-import { mockVerifikationer } from "@/lib/mock-data"
+import { useVerifications } from "@/hooks/use-verifications"
+import { useCompany } from "@/providers/company-provider"
+import { useTextMode } from "@/providers/text-mode-provider"
 
 export function MomsdeklarationContent() {
     const toast = useToast()
+    const { text } = useTextMode()
+    const { verifications } = useVerifications()
+    const { company } = useCompany()
 
-    // Calculate periods dynamically
+    // Calculate periods dynamically based on real verifications
     const vatPeriodsState = useMemo(() => {
         const periods = ["Q4 2024", "Q3 2024", "Q2 2024", "Q1 2024"]
         return periods.map(p => {
-            // For older periods, we might simulate "submitted" if we had a backend
-            // For now we just calculate the numbers
-            const report = VatProcessor.calculateReport(mockVerifikationer, p)
+            const report = VatProcessor.calculateReportFromRealVerifications(verifications, p)
 
-            // Simulation: Q1-Q3 are simulated as submitted
+            // Simulation: Q1-Q3 are simulated as submitted if we assume past is done
+            // In a real app, we would fetch report status from DB too.
+            // For now, keep the visual simulation for older quarters.
             if (p !== "Q4 2024") report.status = "submitted"
 
             return report
         })
-    }, [])
+    }, [verifications])
 
     const [showAIDialog, setShowAIDialog] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
     const [statusFilter, setStatusFilter] = useState<string | null>(null)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [selectedReport, setSelectedReport] = useState<VatReport | null>(null)
-    const [vatPeriods, setVatPeriods] = useState<VatReport[]>(vatPeriodsState)
+    const [vatPeriods, setVatPeriods] = useState<VatReport[]>([])
 
-    // Calculate stats from vatPeriods data
+    // Sync state with memoized calculation
+    // This allows local edits (if any) to persist until re-fetch, but here we just overwrite on verifications change
+    // Ideally we shouldn't duplicate state, but the existing component structure uses 'vatPeriods' state.
+    useMemo(() => {
+        setVatPeriods(vatPeriodsState)
+    }, [vatPeriodsState])
+
+    // Calculate stats from the active period (Q4 2024 or upcoming)
     const stats = useMemo(() => {
-        const upcomingPeriod = vatPeriodsState.find(p => p.status === "upcoming")
-        if (upcomingPeriod) {
-            return {
-                nextPeriod: upcomingPeriod.period,
-                deadline: `Deadline: ${upcomingPeriod.dueDate}`,
-                salesVat: upcomingPeriod.salesVat,
-                inputVat: upcomingPeriod.inputVat,
-                netVat: upcomingPeriod.netVat,
-            }
+        // Find the first upcoming or Q4 period
+        const upcomingPeriod = vatPeriodsState.find(p => p.status === "upcoming") || vatPeriodsState[0]
+
+        if (!upcomingPeriod) return {
+            nextPeriod: "Ingen period",
+            deadline: "",
+            salesVat: 0,
+            inputVat: 0,
+            netVat: 0,
         }
-        const first = vatPeriodsState[0]
+
         return {
-            nextPeriod: first?.period || "Ingen period",
-            deadline: first?.dueDate ? `Deadline: ${first.dueDate}` : "",
-            salesVat: first?.salesVat || 0,
-            inputVat: first?.inputVat || 0,
-            netVat: first?.netVat || 0,
+            nextPeriod: upcomingPeriod.period,
+            deadline: `Deadline: ${upcomingPeriod.dueDate}`,
+            salesVat: upcomingPeriod.salesVat,
+            inputVat: upcomingPeriod.inputVat,
+            netVat: upcomingPeriod.netVat,
         }
     }, [vatPeriodsState])
 
@@ -136,7 +148,7 @@ export function MomsdeklarationContent() {
             icon: Trash2,
             variant: "destructive",
             onClick: (ids) => {
-                setVatPeriodsState(prev => prev.filter(p => !ids.includes(p.period)))
+                setVatPeriods(prev => prev.filter(p => !ids.includes(p.period)))
                 toast.success("Rapporter borttagna", `${ids.length} momsrapport(er) har tagits bort`)
                 setSelectedIds(new Set())
             },
@@ -146,7 +158,7 @@ export function MomsdeklarationContent() {
             label: "Skicka till Skatteverket",
             icon: Send,
             onClick: (ids) => {
-                setVatPeriodsState(prev => prev.map(p =>
+                setVatPeriods(prev => prev.map(p =>
                     ids.includes(p.period) ? { ...p, status: "submitted" as const } : p
                 ))
                 toast.success("Rapporter skickade", `${ids.length} momsdeklaration(er) skickades till Skatteverket`)
@@ -155,37 +167,64 @@ export function MomsdeklarationContent() {
         },
         {
             id: "download",
-            label: "Ladda ner",
+            label: "Ladda ner XML",
             icon: Download,
             onClick: (ids) => {
-                toast.info("Laddar ner", `Förbereder nedladdning av ${ids.length} rapport(er)...`)
+                const reports = vatPeriods.filter(p => ids.includes(p.period))
+                reports.forEach(report => {
+                    const xml = VatProcessor.generateXML(report, company?.orgNumber || "556000-0000")
+                    const blob = new Blob([xml], { type: "text/xml" })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = `momsdeklaration-${report.period.replace(' ', '-')}.xml`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                })
+                toast.success("Nerladdat", `${ids.length} fil(er) har laddats ner.`)
                 setSelectedIds(new Set())
             },
         },
     ]
+
+    const handleDownloadSingle = (report: VatReport) => {
+        const xml = VatProcessor.generateXML(report, company?.orgNumber || "556000-0000")
+        const blob = new Blob([xml], { type: "text/xml" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `momsdeklaration-${report.period.replace(' ', '-')}.xml`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success("Nerladdat", `Momsdeklaration för ${report.period} har laddats ner.`)
+    }
 
     return (
         <main className="flex-1 flex flex-col p-6">
             <div className="max-w-6xl w-full space-y-6">
                 <StatCardGrid columns={3}>
                     <StatCard
-                        label="Nästa deklaration"
+                        label={text.reports.nextDeclaration}
                         value={stats.nextPeriod}
                         subtitle={stats.deadline}
                         icon={Calendar}
                         tooltip={termExplanations["Momsdeklaration"]}
                     />
                     <StatCard
-                        label="Moms att betala"
+                        label={text.reports.vatToPay}
                         value={formatCurrency(stats.netVat)}
-                        subtitle={`Utgående: ${formatCurrency(stats.salesVat)}`}
+                        subtitle={`${text.reports.salesVat}: ${formatCurrency(stats.salesVat)}`}
                         icon={Wallet}
                         tooltip={termExplanations["Moms att betala"]}
                     />
                     <StatCard
-                        label="Ingående moms"
+                        label={text.reports.inputVat}
                         value={formatCurrency(stats.inputVat)}
-                        subtitle="Avdragsgill"
+                        subtitle={text.reports.deductible}
                         icon={TrendingUp}
                         tooltip={termExplanations["Ingående moms"]}
                     />
@@ -196,8 +235,8 @@ export function MomsdeklarationContent() {
 
                 <SectionCard
                     icon={Bot}
-                    title="AI-momsdeklaration"
-                    description="Beräknas automatiskt från bokföringens momskonton (2610, 2640)."
+                    title={text.reports.aiVatReport}
+                    description={text.reports.aiVatDesc}
                     variant="ai"
                     onAction={() => setShowAIDialog(true)}
                 />
@@ -208,7 +247,7 @@ export function MomsdeklarationContent() {
                 />
 
                 <DataTable
-                    title="Momsperioder"
+                    title={text.reports.vatPeriods}
                     headerActions={
                         <div className="flex items-center gap-2">
                             <SearchBar
@@ -268,7 +307,7 @@ export function MomsdeklarationContent() {
                                 onClick={() => setSelectedReport(item)}
                                 className="cursor-pointer"
                             >
-                                <DataTableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                                <DataTableCell className="w-10" onClick={(e) => e?.stopPropagation()}>
                                     <Checkbox
                                         checked={selectedIds.has(item.period)}
                                         onCheckedChange={() => toggleSelection(item.period)}
@@ -284,7 +323,7 @@ export function MomsdeklarationContent() {
                                         status={item.status === "upcoming" ? "Kommande" : "Inskickad"}
                                     />
                                 </DataTableCell>
-                                <DataTableCell onClick={(e) => e.stopPropagation()}>
+                                <DataTableCell onClick={(e) => e?.stopPropagation()}>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -300,9 +339,9 @@ export function MomsdeklarationContent() {
                                                 <Edit className="h-4 w-4 mr-2" />
                                                 Redigera
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleDownloadSingle(item)}>
                                                 <Download className="h-4 w-4 mr-2" />
-                                                Ladda ner
+                                                Ladda ner XML
                                             </DropdownMenuItem>
                                             <DropdownMenuItem disabled={item.status !== "upcoming"}>
                                                 <Send className="h-4 w-4 mr-2" />

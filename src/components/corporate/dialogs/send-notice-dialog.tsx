@@ -6,7 +6,8 @@ import {
     FileText,
     Megaphone,
     Send,
-    Sparkles
+    Sparkles,
+    Download
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -19,6 +20,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
+import { generateAnnualMeetingNoticePDF, type MeetingData } from "@/lib/pdf-generator"
+import { useToast } from "@/components/ui/toast"
 
 export type NoticeVariant = "association" | "corporate"
 
@@ -27,6 +30,7 @@ interface SendNoticeDialogProps {
     onOpenChange: (open: boolean) => void
     variant: NoticeVariant
     recipientCount: number
+    meeting?: MeetingData
     onSubmit?: () => void
 }
 
@@ -35,11 +39,32 @@ export function SendNoticeDialog({
     onOpenChange,
     variant,
     recipientCount,
+    meeting,
     onSubmit
 }: SendNoticeDialogProps) {
     const isAssociation = variant === "association"
     const title = isAssociation ? "Skicka kallelse till årsmöte" : "Skicka kallelse till bolagsstämma"
     const recipientType = isAssociation ? "aktiva medlemmar" : "aktieägare"
+    const toast = useToast()
+
+    const [isSending, setIsSending] = React.useState(false)
+
+    const handleSend = async () => {
+        setIsSending(true)
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        setIsSending(false)
+
+        toast.success("Kallelse skickad", `Kallelse har skickats till ${recipientCount} ${recipientType}.`)
+
+        onSubmit?.()
+        onOpenChange(false)
+    }
+
+    const handleDownloadPDF = () => {
+        if (!meeting) return
+        generateAnnualMeetingNoticePDF(meeting)
+    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -122,17 +147,22 @@ export function SendNoticeDialog({
                         </CardContent>
                     </Card>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Avbryt
-                    </Button>
-                    <Button onClick={() => {
-                        onSubmit?.()
-                        onOpenChange(false)
-                    }}>
-                        <Send className="h-4 w-4 mr-2" />
-                        Förhandsgranska kallelse
-                    </Button>
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                    {meeting && (
+                        <Button variant="secondary" onClick={handleDownloadPDF} className="sm:mr-auto">
+                            <Download className="h-4 w-4 mr-2" />
+                            Ladda ner PDF
+                        </Button>
+                    )}
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => onOpenChange(false)}>
+                            Avbryt
+                        </Button>
+                        <Button onClick={handleSend} disabled={isSending}>
+                            <Send className="h-4 w-4 mr-2" />
+                            {isSending ? "Skickar..." : "Skicka"}
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

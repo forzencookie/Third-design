@@ -30,6 +30,8 @@ export const mockTransactions: Transaction[] = [
     timestamp: new Date("2024-05-02"),
     amount: "-490 kr",
     amountValue: -490.00,
+    vatAmount: -98,    // 25% VAT (490 * 0.2 = 98 ingående moms)
+    vatRate: 25,
     status: TRANSACTION_STATUS_LABELS.TO_RECORD,
     category: "Programvara",
     iconName: "Smartphone",
@@ -43,6 +45,8 @@ export const mockTransactions: Transaction[] = [
     timestamp: new Date("2024-05-10"),
     amount: "-1 245 kr",
     amountValue: -1245.00,
+    vatAmount: -249,   // 25% VAT (1245 * 0.2 = 249 ingående moms)
+    vatRate: 25,
     status: TRANSACTION_STATUS_LABELS.TO_RECORD,
     category: "Material",
     iconName: "Tag",
@@ -56,6 +60,8 @@ export const mockTransactions: Transaction[] = [
     timestamp: new Date("2024-05-15"),
     amount: "-4 500 kr",
     amountValue: -4500.00,
+    vatAmount: -270,   // 6% VAT for travel (4500 * 0.06 = 270 ingående moms)
+    vatRate: 6,
     status: TRANSACTION_STATUS_LABELS.MISSING_DOCUMENTATION,
     category: "Resor",
     iconName: "Plane",
@@ -69,6 +75,8 @@ export const mockTransactions: Transaction[] = [
     timestamp: new Date("2024-05-07"),
     amount: "+45 000 kr",
     amountValue: 45000.00,
+    vatAmount: 9000,   // 25% VAT (36000 net + 9000 utgående moms = 45000)
+    vatRate: 25,
     status: TRANSACTION_STATUS_LABELS.RECORDED,
     category: "Intäkter",
     iconName: "Briefcase",
@@ -82,6 +90,8 @@ export const mockTransactions: Transaction[] = [
     timestamp: new Date("2024-05-12"),
     amount: "-142 kr",
     amountValue: -142.00,
+    vatAmount: -17,    // 12% VAT for food (142 * 0.12 = 17 ingående moms)
+    vatRate: 12,
     status: TRANSACTION_STATUS_LABELS.RECORDED,
     category: "Representation",
     iconName: "Coffee",
@@ -95,6 +105,8 @@ export const mockTransactions: Transaction[] = [
     timestamp: new Date("2024-05-24"),
     amount: "-5 500 kr",
     amountValue: -5500.00,
+    vatAmount: -1100,  // 25% VAT (5500 * 0.2 = 1100 ingående moms)
+    vatRate: 25,
     status: TRANSACTION_STATUS_LABELS.RECORDED,
     category: "Lokalhyra",
     iconName: "Building2",
@@ -108,6 +120,8 @@ export const mockTransactions: Transaction[] = [
     timestamp: new Date("2024-05-27"),
     amount: "+21 000 kr",
     amountValue: 21000.00,
+    vatAmount: 4200,   // 25% VAT (16800 net + 4200 utgående moms = 21000)
+    vatRate: 25,
     status: TRANSACTION_STATUS_LABELS.RECORDED,
     category: "Intäkter",
     iconName: "Briefcase",
@@ -121,45 +135,45 @@ export const mockTransactions: Transaction[] = [
 // ============================================
 
 export const mockAISuggestions: Record<string, AISuggestion> = {
-  "txn-1": { 
-    category: "IT & Programvara", 
-    account: "5420", 
+  "txn-1": {
+    category: "IT & Programvara",
+    account: "5420",
     confidence: 94,
     reasoning: "Månatlig prenumeration på designprogramvara",
   },
-  "txn-2": { 
-    category: "Kontorsmaterial", 
-    account: "5410", 
+  "txn-2": {
+    category: "Kontorsmaterial",
+    account: "5410",
     confidence: 88,
     reasoning: "Inköp av kontorsmaterial från känd leverantör",
   },
-  "txn-3": { 
-    category: "Resor", 
-    account: "5800", 
+  "txn-3": {
+    category: "Resor",
+    account: "5800",
     confidence: 96,
     reasoning: "Flygbokning för tjänsteresa",
   },
-  "txn-4": { 
-    category: "Intäkter", 
-    account: "3040", 
+  "txn-4": {
+    category: "Intäkter",
+    account: "3040",
     confidence: 99,
     reasoning: "Kundbetalning matchande faktura #1234",
   },
-  "txn-5": { 
-    category: "Representation", 
-    account: "6072", 
+  "txn-5": {
+    category: "Representation",
+    account: "6072",
     confidence: 72,
     reasoning: "Möteskostnad - kan kräva dokumentation",
   },
-  "txn-6": { 
-    category: "Lokalhyra", 
-    account: "5010", 
+  "txn-6": {
+    category: "Lokalhyra",
+    account: "5010",
     confidence: 91,
     reasoning: "Månatlig hyra för kontorslokal",
   },
-  "txn-7": { 
-    category: "Intäkter", 
-    account: "3040", 
+  "txn-7": {
+    category: "Intäkter",
+    account: "3040",
     confidence: 89,
     reasoning: "Konsultintäkt",
   },

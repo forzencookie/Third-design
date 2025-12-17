@@ -1,6 +1,6 @@
 "use client"
 
-import { TrendingDown } from "lucide-react"
+import { TrendingDown, Loader2 } from "lucide-react"
 import {
     Card,
     CardContent,
@@ -14,15 +14,23 @@ import {
     ChartTooltip,
     ChartTooltipContent,
 } from "@/components/ui/chart"
-import { PieChart, Pie } from "recharts"
+import { PieChart, Pie, Cell } from "recharts"
 import {
-    expenseCategories,
     expensePieColors,
     expensePieConfig,
 } from "./statistics-data"
+import { useCompanyStatistics } from "@/hooks/use-company-statistics"
 
 export function ExpensesTab() {
+    const { expenseCategories, isLoading } = useCompanyStatistics()
     const totalExpenses = expenseCategories.reduce((sum, cat) => sum + cat.amount, 0)
+
+    if (isLoading) {
+        return <div className="h-96 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+    }
+
+    // Sort categories largest first for better visualization
+    const sortedCategories = [...expenseCategories].sort((a, b) => b.amount - a.amount)
 
     return (
         <div className="space-y-6">
@@ -37,20 +45,23 @@ export function ExpensesTab() {
                     <CardContent className="flex-1 pb-0">
                         <ChartContainer config={expensePieConfig} className="mx-auto aspect-square max-h-[250px]">
                             <PieChart>
-                                <ChartTooltip 
-                                    cursor={false} 
-                                    content={<ChartTooltipContent hideLabel />} 
+                                <ChartTooltip
+                                    cursor={false}
+                                    content={<ChartTooltipContent hideLabel />}
                                 />
                                 <Pie
-                                    data={expenseCategories.map((cat, index) => ({
-                                        name: Object.keys(expensePieConfig)[index],
+                                    data={sortedCategories.map((cat, index) => ({
+                                        name: cat.category,
                                         value: cat.amount,
-                                        fill: expensePieColors[index]
                                     }))}
                                     dataKey="value"
                                     nameKey="name"
                                     stroke="0"
-                                />
+                                >
+                                    {sortedCategories.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={expensePieColors[index % expensePieColors.length]} />
+                                    ))}
+                                </Pie>
                             </PieChart>
                         </ChartContainer>
                     </CardContent>
@@ -67,17 +78,19 @@ export function ExpensesTab() {
                 {/* Category Details */}
                 <div className="col-span-2 space-y-3">
                     <h2 className="text-sm font-medium text-muted-foreground mb-3">Kostnadsfördelning per kategori</h2>
-                    {expenseCategories.map((cat, index) => {
+                    {sortedCategories.map((cat, index) => {
                         const Icon = cat.icon
+                        const color = expensePieColors[index % expensePieColors.length]
+
                         return (
                             <Card key={cat.category} className="p-4">
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-3">
-                                        <div 
+                                        <div
                                             className="h-10 w-10 rounded-lg flex items-center justify-center"
-                                            style={{ backgroundColor: `${expensePieColors[index]}20` }}
+                                            style={{ backgroundColor: `${color}20` }}
                                         >
-                                            <Icon className="h-5 w-5" style={{ color: expensePieColors[index] }} />
+                                            <Icon className="h-5 w-5" style={{ color: color }} />
                                         </div>
                                         <div>
                                             <span className="font-medium">{cat.category}</span>
@@ -89,15 +102,20 @@ export function ExpensesTab() {
                                 <div className="w-full bg-muted rounded-full h-2">
                                     <div
                                         className="h-2 rounded-full transition-all"
-                                        style={{ 
+                                        style={{
                                             width: `${cat.percentage}%`,
-                                            backgroundColor: expensePieColors[index]
+                                            backgroundColor: color
                                         }}
                                     />
                                 </div>
                             </Card>
                         )
                     })}
+                    {sortedCategories.length === 0 && (
+                        <div className="text-center py-12 text-muted-foreground">
+                            Inga kostnader registrerade ännu.
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

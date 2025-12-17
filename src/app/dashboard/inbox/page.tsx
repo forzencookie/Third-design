@@ -193,7 +193,7 @@ export default function InboxPage() {
 
                                     if (response.ok) {
                                         // Refresh inbox
-                                        fetchInbox()
+                                        fetchItems()
                                     }
                                 } catch (error) {
                                     console.error('Upload failed:', error)
@@ -321,7 +321,7 @@ export default function InboxPage() {
                                                 // Trigger AI processing
                                                 await fetch('/api/ai/process-inbox', { method: 'POST' })
                                                 // Refresh inbox
-                                                fetchInbox()
+                                                fetchItems()
                                             } catch (error) {
                                                 console.error('Retry failed:', error)
                                             }
