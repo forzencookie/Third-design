@@ -19,14 +19,18 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import PayrollPage from "@/components/pages/payroll-page"
 import AccountingPage from "@/components/pages/accounting-page"
 import ReportsPage from "@/components/pages/reports-page"
-import AgarePage from "@/components/pages/agare-page"
+import SkattPage from "@/components/pages/skatt-page"
+import HandelserPage from "@/components/pages/handelser-page"
+import ParterPage from "@/components/pages/parter-page"
 
 // Map slug to page component and label (Swedish URL names)
 const pageMap: Record<string, { component: React.ComponentType; label: string }> = {
-    loner: { component: PayrollPage, label: "Löner" },
     bokforing: { component: AccountingPage, label: "Bokföring" },
     rapporter: { component: ReportsPage, label: "Rapporter" },
-    agare: { component: AgarePage, label: "Ägare & Styrning" },
+    skatt: { component: SkattPage, label: "Skatt & Deklarationer" },
+    handelser: { component: HandelserPage, label: "Händelser" },
+    parter: { component: ParterPage, label: "Parter" },
+    loner: { component: PayrollPage, label: "Löner" },
 }
 
 function SokBreadcrumb({ section }: { section: string }) {

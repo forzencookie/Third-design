@@ -44,8 +44,10 @@ interface SearchItem {
 const categoryColors: Record<string, string> = {
     "Bokföring": "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400",
     "Rapporter": "bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400",
+    "Skatt": "bg-purple-100 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400",
+    "Händelser": "bg-sky-100 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400",
+    "Parter": "bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400",
     "Löner": "bg-pink-100 text-pink-600 dark:bg-pink-950/50 dark:text-pink-400",
-    "Ägare": "bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400",
 }
 
 const searchItems: SearchItem[] = [
@@ -54,29 +56,32 @@ const searchItems: SearchItem[] = [
     { id: "2", title: "Fakturor & Kvitton", titleEnkel: "Kvitton", description: "Ladda upp och hantera kvitton", icon: <Receipt className="h-4 w-4" />, href: "/dashboard/sok/bokforing?tab=kvitton", category: "Bokföring", feature: "kvitton", colorClass: categoryColors["Bokföring"] },
     { id: "3", title: "Verifikationer", titleEnkel: "Alla bokningar", description: "Bokföringsverifikationer", icon: <ClipboardCheck className="h-4 w-4" />, href: "/dashboard/sok/bokforing?tab=verifikationer", category: "Bokföring", feature: "verifikationer", colorClass: categoryColors["Bokföring"] },
 
-    // Rapporter (Orange)
-    { id: "4", title: "Momsdeklaration", titleEnkel: "Momsrapport", description: "Hantera moms", icon: <Calculator className="h-4 w-4" />, href: "/dashboard/sok/rapporter?tab=momsdeklaration", category: "Rapporter", feature: "momsdeklaration", colorClass: categoryColors["Rapporter"] },
-    { id: "5", title: "Inkomstdeklaration", titleEnkel: "Skatterapport", description: "Inkomstskatt", icon: <Send className="h-4 w-4" />, href: "/dashboard/sok/rapporter?tab=inkomstdeklaration", category: "Rapporter", feature: "inkomstdeklaration", colorClass: categoryColors["Rapporter"] },
-    { id: "6", title: "Årsredovisning", titleEnkel: "Årssammanställning", description: "Årsredovisning", icon: <FileBarChart className="h-4 w-4" />, href: "/dashboard/sok/rapporter?tab=arsredovisning", category: "Rapporter", feature: "arsredovisning", colorClass: categoryColors["Rapporter"] },
-    { id: "7", title: "Årsbokslut", titleEnkel: "Bokslut", description: "Årsbokslut", icon: <FileText className="h-4 w-4" />, href: "/dashboard/sok/rapporter?tab=arsbokslut", category: "Rapporter", feature: "arsbokslut", colorClass: categoryColors["Rapporter"] },
+    // Rapporter (Orange) - Read-only output
+    { id: "4", title: "Resultaträkning", titleEnkel: "Resultat", description: "Intäkter och kostnader", icon: <PieChart className="h-4 w-4" />, href: "/dashboard/sok/rapporter?tab=resultat", category: "Rapporter", feature: "resultatrakning", colorClass: categoryColors["Rapporter"] },
+    { id: "5", title: "Balansräkning", titleEnkel: "Balans", description: "Tillgångar och skulder", icon: <FileBarChart className="h-4 w-4" />, href: "/dashboard/sok/rapporter?tab=balans", category: "Rapporter", feature: "balansrakning", colorClass: categoryColors["Rapporter"] },
 
-    // Löner (Pink)
-    { id: "8", title: "Lönebesked", titleEnkel: "Lönebesked", description: "Hantera löner", icon: <FileText className="h-4 w-4" />, href: "/dashboard/sok/loner?tab=lonebesked", category: "Löner", feature: "lonebesked", colorClass: categoryColors["Löner"] },
-    { id: "9", title: "AGI", titleEnkel: "Arbetsgivarinfo", description: "Arbetsgivardeklaration", icon: <Send className="h-4 w-4" />, href: "/dashboard/sok/loner?tab=agi", category: "Löner", feature: "agi", colorClass: categoryColors["Löner"] },
-    { id: "10", title: "Utdelning", titleEnkel: "Utdelning", description: "Aktieutdelning", icon: <DollarSign className="h-4 w-4" />, href: "/dashboard/sok/loner?tab=utdelning", category: "Löner", feature: "utdelning", colorClass: categoryColors["Löner"] },
-    { id: "11", title: "Förmåner", titleEnkel: "Övriga Förmåner", description: "Hantera personalförmåner", icon: <Gift className="h-4 w-4" />, href: "/dashboard/sok/loner?tab=benefits", category: "Löner", feature: "lonebesked", colorClass: categoryColors["Löner"] },
+    // Skatt & Deklarationer (Purple)
+    { id: "6", title: "Momsdeklaration", titleEnkel: "Momsrapport", description: "Hantera moms", icon: <Calculator className="h-4 w-4" />, href: "/dashboard/sok/skatt?tab=momsdeklaration", category: "Skatt", feature: "momsdeklaration", colorClass: categoryColors["Skatt"] },
+    { id: "7", title: "Inkomstdeklaration", titleEnkel: "Skatterapport", description: "Inkomstskatt", icon: <Send className="h-4 w-4" />, href: "/dashboard/sok/skatt?tab=inkomstdeklaration", category: "Skatt", feature: "inkomstdeklaration", colorClass: categoryColors["Skatt"] },
+    { id: "8", title: "Årsredovisning", titleEnkel: "Årssammanställning", description: "Årsredovisning", icon: <FileBarChart className="h-4 w-4" />, href: "/dashboard/sok/skatt?tab=arsredovisning", category: "Skatt", feature: "arsredovisning", colorClass: categoryColors["Skatt"] },
+    { id: "9", title: "Årsbokslut", titleEnkel: "Bokslut", description: "Årsbokslut", icon: <FileText className="h-4 w-4" />, href: "/dashboard/sok/skatt?tab=arsbokslut", category: "Skatt", feature: "arsbokslut", colorClass: categoryColors["Skatt"] },
 
-    // Ägare & Styrning (Blue)
-    { id: "12", title: "Aktiebok", titleEnkel: "Aktiebok", description: "Hantera aktiebok", icon: <BookOpen className="h-4 w-4" />, href: "/dashboard/sok/agare?tab=aktiebok", category: "Ägare", feature: "aktiebok", colorClass: categoryColors["Ägare"] },
-    { id: "13", title: "Delägare", titleEnkel: "Ägare", description: "Hantera delägare", icon: <Users className="h-4 w-4" />, href: "/dashboard/sok/agare?tab=delagare", category: "Ägare", feature: "delagare", colorClass: categoryColors["Ägare"] },
-    { id: "14", title: "Styrelseprotokoll", titleEnkel: "Styrelseanteckningar", description: "Protokoll från styrelsemöten", icon: <FileText className="h-4 w-4" />, href: "/dashboard/sok/agare?tab=styrelseprotokoll", category: "Ägare", feature: "styrelseprotokoll", colorClass: categoryColors["Ägare"] },
-    { id: "15", title: "Bolagsstämma", titleEnkel: "Årsmöte (AB)", description: "Protokoll från bolagsstämma", icon: <Landmark className="h-4 w-4" />, href: "/dashboard/sok/agare?tab=bolagsstamma", category: "Ägare", feature: "bolagsstamma", colorClass: categoryColors["Ägare"] },
+    // Löner (Pink) - Conditional
+    { id: "10", title: "Lönebesked", titleEnkel: "Lönebesked", description: "Hantera löner", icon: <FileText className="h-4 w-4" />, href: "/dashboard/sok/loner?tab=lonebesked", category: "Löner", feature: "lonebesked", colorClass: categoryColors["Löner"] },
+    { id: "11", title: "Utdelning", titleEnkel: "Utdelning", description: "Aktieutdelning", icon: <DollarSign className="h-4 w-4" />, href: "/dashboard/sok/loner?tab=utdelning", category: "Löner", feature: "utdelning", colorClass: categoryColors["Löner"] },
+    { id: "12", title: "Förmåner", titleEnkel: "Övriga Förmåner", description: "Hantera personalförmåner", icon: <Gift className="h-4 w-4" />, href: "/dashboard/sok/loner?tab=benefits", category: "Löner", feature: "lonebesked", colorClass: categoryColors["Löner"] },
+
+    // Parter (Blue) - People & Roles
+    { id: "13", title: "Aktiebok", titleEnkel: "Aktiebok", description: "Hantera aktiebok", icon: <BookOpen className="h-4 w-4" />, href: "/dashboard/sok/parter?tab=aktiebok", category: "Parter", feature: "aktiebok", colorClass: categoryColors["Parter"] },
+    { id: "14", title: "Delägare", titleEnkel: "Ägare", description: "Hantera delägare", icon: <Users className="h-4 w-4" />, href: "/dashboard/sok/parter?tab=delagare", category: "Parter", feature: "delagare", colorClass: categoryColors["Parter"] },
+    { id: "15", title: "Styrelseprotokoll", titleEnkel: "Styrelseanteckningar", description: "Protokoll från styrelsemöten", icon: <FileText className="h-4 w-4" />, href: "/dashboard/sok/parter?tab=styrelseprotokoll", category: "Parter", feature: "styrelseprotokoll", colorClass: categoryColors["Parter"] },
+    { id: "16", title: "Bolagsstämma", titleEnkel: "Årsmöte (AB)", description: "Protokoll från bolagsstämma", icon: <Landmark className="h-4 w-4" />, href: "/dashboard/sok/parter?tab=bolagsstamma", category: "Parter", feature: "bolagsstamma", colorClass: categoryColors["Parter"] },
 ]
 
 import { useTextMode } from "@/providers/text-mode-provider"
 
-// Filter categories
-const filterCategories = ["Bokföring", "Rapporter", "Löner", "Ägare"] as const
+// Filter categories (new pillar structure)
+const filterCategories = ["Bokföring", "Rapporter", "Skatt", "Parter", "Löner"] as const
 type FilterCategory = typeof filterCategories[number] | null
 
 export default function SokPage() {
@@ -112,8 +117,9 @@ export default function SokPage() {
         if (activeFilter !== null && item.category !== activeFilter &&
             !(activeFilter === "Bokföring" && ["Bokföring"].includes(item.category)) &&
             !(activeFilter === "Rapporter" && ["Rapporter"].includes(item.category)) &&
-            !(activeFilter === "Löner" && ["Löner"].includes(item.category)) &&
-            !(activeFilter === "Ägare" && ["Ägare"].includes(item.category))
+            !(activeFilter === "Skatt" && ["Skatt"].includes(item.category)) &&
+            !(activeFilter === "Parter" && ["Parter"].includes(item.category)) &&
+            !(activeFilter === "Löner" && ["Löner"].includes(item.category))
         ) {
             return false
         }
