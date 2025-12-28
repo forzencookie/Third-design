@@ -11,7 +11,7 @@ import type { Transaction, Receipt } from "@/types"
 // Types
 // ============================================
 
-export type SearchResultType = 'transaction' | 'receipt' | 'employee' | 'invoice' | 'page'
+export type SearchResultType = 'transaction' | 'receipt' | 'employee' | 'invoice' | 'page' | 'event' | 'action'
 
 export interface SearchResult {
     id: string
@@ -24,6 +24,7 @@ export interface SearchResult {
     matchedField?: string // Which field matched the query
     amount?: string       // Optional amount to display
     date?: string         // Optional date to display
+    status?: string       // Optional status for events/actions
 }
 
 export interface SearchResultGroup {
@@ -43,6 +44,8 @@ const searchColors: Record<string, string> = {
     "Verifikationer": "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400",
     "Anställda": "bg-pink-100 text-pink-600 dark:bg-pink-950/50 dark:text-pink-400",
     "Fakturor": "bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400",
+    "Händelser": "bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400",
+    "Bolagsåtgärder": "bg-indigo-100 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400",
     "Sidor": "bg-gray-100 text-gray-600 dark:bg-gray-950/50 dark:text-gray-400",
 }
 
@@ -162,6 +165,8 @@ export function groupSearchResults(results: SearchResult[]): SearchResultGroup[]
         "Verifikationer": "/dashboard/sok/bokforing?tab=verifikationer",
         "Anställda": "/dashboard/sok/loner?tab=lonebesked",
         "Fakturor": "/dashboard/sok/bokforing?tab=kvitton",
+        "Händelser": "/dashboard/sok/handelser",
+        "Bolagsåtgärder": "/dashboard/sok/handelser?filter=action",
     }
 
     return Object.entries(grouped).map(([category, results]) => ({

@@ -54,19 +54,10 @@ import {
     DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu"
 
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { useToast } from "@/components/ui/toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { BulkActionToolbar, useBulkSelection, type BulkAction } from "../shared/bulk-action-toolbar"
+import { DeleteConfirmDialog, useDeleteConfirmation } from "@/components/shared/delete-confirm-dialog"
 import { Trash2, Download, Archive } from "lucide-react"
 import { BookingDialog, type BookingData } from "@/components/transactions/BookingDialog"
 
@@ -93,8 +84,9 @@ export function ReceiptsTable() {
     const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
     const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null)
     const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-    const [receiptToDelete, setReceiptToDelete] = useState<string | null>(null)
+
+    // Delete confirmation using shared hook
+    const deleteConfirmation = useDeleteConfirmation()
 
     // Booking states
     const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
@@ -177,18 +169,16 @@ export function ReceiptsTable() {
     const bulkSelection = useBulkSelection(filteredReceipts)
 
     const handleDeleteClick = (id: string) => {
-        setReceiptToDelete(id)
-        setDeleteDialogOpen(true)
+        deleteConfirmation.requestDelete(id)
     }
 
     const handleConfirmDelete = () => {
-        if (receiptToDelete) {
-            const receipt = receipts.find(r => r.id === receiptToDelete)
-            setReceipts(prev => prev.filter(r => r.id !== receiptToDelete))
+        const id = deleteConfirmation.confirmDelete()
+        if (id) {
+            const receipt = receipts.find(r => r.id === id)
+            setReceipts(prev => prev.filter(r => r.id !== id))
             toast.success("Underlag raderat", `${receipt?.supplier || 'Underlaget'} har raderats`)
         }
-        setDeleteDialogOpen(false)
-        setReceiptToDelete(null)
     }
 
     const handleViewDetails = (receipt: Receipt) => {
@@ -318,9 +308,15 @@ export function ReceiptsTable() {
     return (
         <div className="w-full space-y-6">
             {/* Page Heading */}
-            <div>
-                <h2 className="text-2xl font-bold tracking-tight">{text.receipts.title}</h2>
-                <p className="text-muted-foreground">{text.receipts.subtitle}</p>
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight">{text.receipts.title}</h2>
+                    <p className="text-muted-foreground">{text.receipts.subtitle}</p>
+                </div>
+                <Button className="gap-2" onClick={() => setUploadDialogOpen(true)}>
+                    <UploadCloud className="h-4 w-4" />
+                    {text.receipts.upload}
+                </Button>
             </div>
 
             {/* Stats Cards */}
@@ -356,25 +352,10 @@ export function ReceiptsTable() {
             <div className="border-b-2 border-border/60" />
 
             {/* Delete Confirmation Dialog */}
-            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>{text.confirm.areYouSure}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {text.confirm.cannotUndo}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{text.actions.cancel}</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleConfirmDelete}
-                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-                        >
-                            {text.actions.delete}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <DeleteConfirmDialog
+                {...deleteConfirmation.dialogProps}
+                onConfirm={handleConfirmDelete}
+            />
 
             {/* Upload/Create Dialog */}
             <UnderlagDialog
@@ -467,10 +448,6 @@ export function ReceiptsTable() {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <Button size="sm" className="h-8 gap-1" onClick={() => setUploadDialogOpen(true)}>
-                            <UploadCloud className="h-3.5 w-3.5" />
-                            {text.actions.upload}
-                        </Button>
                     </div>
                 }
             >

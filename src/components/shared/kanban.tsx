@@ -30,6 +30,7 @@ export interface KanbanCardProps {
     amount: number
     date?: string
     isOverdue?: boolean
+    extraTags?: React.ReactNode  // For additional tags like VAT
     children?: React.ReactNode  // For action menu content
 }
 
@@ -39,10 +40,11 @@ export function KanbanCard({
     amount,
     date,
     isOverdue = false,
+    extraTags,
     children,
 }: KanbanCardProps) {
     return (
-        <div className="bg-background rounded-lg border-2 border-border/60 p-4 hover:shadow-md transition-all cursor-pointer group">
+        <div className="bg-background rounded-lg border-2 border-dashed border-border/60 p-4 hover:shadow-md transition-all cursor-pointer group">
             {/* Subtitle/Client Label */}
             {subtitle && (
                 <div className="text-xs text-muted-foreground mb-2">
@@ -65,6 +67,7 @@ export function KanbanCard({
                 )}>
                     {formatCurrency(amount)}
                 </span>
+                {extraTags}
             </div>
 
             {/* Footer */}
@@ -124,14 +127,9 @@ export function KanbanColumn({
         <div className="flex flex-col flex-1 bg-muted/50 rounded-lg min-w-0">
             {/* Column Header */}
             <div className="flex items-center justify-between px-3 py-2 rounded-t-lg">
-                <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-foreground">
-                        {title}
-                    </span>
-                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-background/80 border shadow-sm text-muted-foreground">
-                        {count}
-                    </span>
-                </div>
+                <span className="font-semibold text-sm text-foreground">
+                    {title}: {count}
+                </span>
                 <div className="flex items-center gap-1">
                     {onAddNew && (
                         <Button

@@ -37,7 +37,7 @@ import {
     FileText,
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
-import { BulkActionToolbar } from "@/components/shared/bulk-action-toolbar"
+import { BulkActionToolbar, useBulkSelection } from "@/components/shared/bulk-action-toolbar"
 import { SearchBar } from "@/components/ui/search-bar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -83,7 +83,6 @@ export function VerifikationerTable() {
     const [selectedVerifikation, setSelectedVerifikation] = useState<Verification | null>(null)
     const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
-    const [selectedIds, setSelectedIds] = useState<Set<number | string>>(new Set())
 
     // Derive verifications from actual booked transactions
     const verifikationer = useMemo(() => {
@@ -170,29 +169,17 @@ export function VerifikationerTable() {
         setDetailsDialogOpen(true)
     }
 
-    const toggleSelection = (id: number | string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev)
-            if (next.has(id)) {
-                next.delete(id)
-            } else {
-                next.add(id)
-            }
-            return next
-        })
-    }
+    // Map verifikationer to have string id for useBulkSelection
+    const verifikationerWithId = useMemo(() =>
+        filteredVerifikationer.map(v => ({ ...v, id: String(v.id) })),
+        [filteredVerifikationer]
+    )
 
-    const toggleAll = () => {
-        if (selectedIds.size === filteredVerifikationer.length && filteredVerifikationer.length > 0) {
-            setSelectedIds(new Set())
-        } else {
-            setSelectedIds(new Set(filteredVerifikationer.map(v => v.id)))
-        }
-    }
+    // Use shared bulk selection hook
+    const selection = useBulkSelection(verifikationerWithId)
 
     const handleBulkAction = (action: string) => {
-        toast.info(`${action} startad`, `Bearbetar ${selectedIds.size} verifikationer...`)
-        // setSelectedIds(new Set()) // Optional: clear selection after action
+        toast.info(`${action} startad`, `Bearbetar ${selection.selectedCount} verifikationer...`)
     }
 
     return (
@@ -372,8 +359,8 @@ export function VerifikationerTable() {
                 <DataTableHeader>
                     <DataTableHeaderCell className="w-10">
                         <Checkbox
-                            checked={selectedIds.size === filteredVerifikationer.length && filteredVerifikationer.length > 0}
-                            onCheckedChange={toggleAll}
+                            checked={selection.allSelected && filteredVerifikationer.length > 0}
+                            onCheckedChange={selection.toggleAll}
                         />
                     </DataTableHeaderCell>
                     <DataTableHeaderCell icon={Hash} label="Nr" />
@@ -388,12 +375,12 @@ export function VerifikationerTable() {
                             key={v.id}
                             className="cursor-pointer"
                             onClick={() => handleViewDetails(v)}
-                            selected={selectedIds.has(v.id)}
+                            selected={selection.isSelected(String(v.id))}
                         >
                             <DataTableCell className="w-10">
                                 <Checkbox
-                                    checked={selectedIds.has(v.id)}
-                                    onCheckedChange={() => toggleSelection(v.id)}
+                                    checked={selection.isSelected(String(v.id))}
+                                    onCheckedChange={() => selection.toggleItem(String(v.id))}
                                     onClick={(e) => e.stopPropagation()}
                                 />
                             </DataTableCell>
@@ -420,9 +407,9 @@ export function VerifikationerTable() {
 
 
             <BulkActionToolbar
-                selectedCount={selectedIds.size}
-                selectedIds={Array.from(selectedIds).map(String)}
-                onClearSelection={() => setSelectedIds(new Set())}
+                selectedCount={selection.selectedCount}
+                selectedIds={selection.selectedIds}
+                onClearSelection={selection.clearSelection}
                 actions={[
                     {
                         id: "export",

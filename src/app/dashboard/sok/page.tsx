@@ -79,7 +79,7 @@ const searchItems: SearchItem[] = [
     { id: "16", title: "Bolagsstämma", titleEnkel: "Årsmöte (AB)", description: "Protokoll från bolagsstämma", icon: <Landmark className="h-4 w-4" />, href: "/dashboard/sok/parter?tab=bolagsstamma", category: "Parter", feature: "bolagsstamma", colorClass: categoryColors["Parter"] },
 
     // Händelser (Sky) - Universal for all company forms
-    { id: "17", title: "Händelser", titleEnkel: "Aktivitet", description: "Vad har hänt i företaget? AI-åtgärder och historik.", icon: <Activity className="h-4 w-4" />, href: "/dashboard/sok/handelser", category: "Händelser", colorClass: categoryColors["Händelser"] },
+    { id: "17", title: "Händelser", titleEnkel: "Historik", description: "Tidslinje över allt som hänt — beslut, dokument och åtgärder.", icon: <Activity className="h-4 w-4" />, href: "/dashboard/sok/handelser", category: "Händelser", colorClass: categoryColors["Händelser"] },
 ]
 
 import { useTextMode } from "@/providers/text-mode-provider"
@@ -95,7 +95,7 @@ export default function SokPage() {
     const [contentResults, setContentResults] = useState<SearchResultGroup[]>([])
     const [isSearching, setIsSearching] = useState(false)
     const { isEnkel } = useTextMode()
-    const { hasFeature } = useCompany()
+    const { hasFeature, companyType } = useCompany()
 
     // Deep search when query changes
     useEffect(() => {
@@ -152,7 +152,7 @@ export default function SokPage() {
 
     return (
         <div className="min-h-screen bg-background">
-            <div className="max-w-2xl mx-auto pt-20 px-4">
+            <div className="max-w-3xl mx-auto pt-12 px-6">
                 {/* Search Header */}
                 <div className="text-center mb-8">
                     <h1 className="text-3xl font-bold mb-2">Sök</h1>
@@ -166,26 +166,46 @@ export default function SokPage() {
                         value={query}
                         onChange={setQuery}
                         className="w-full"
+                        size="lg"
                     />
                 </div>
 
-                {/* Filter Chips */}
-                <div className="flex flex-wrap gap-2 mb-6">
-                    {filterCategories.map(filter => (
-                        <Button
-                            key={filter}
-                            variant={activeFilter === filter ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setActiveFilter(activeFilter === filter ? null : filter)}
-                            className="rounded-full"
-                        >
-                            {filter}
-                        </Button>
-                    ))}
+                {/* Category Buttons - always visible under search bar */}
+                <div className="flex flex-wrap items-center justify-center gap-1 mb-8">
+                    {/* All button */}
+                    <button
+                        onClick={() => setActiveFilter(null)}
+                        className={cn(
+                            "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                            activeFilter === null
+                                ? "bg-primary/10 text-primary"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        )}
+                    >
+                        Alla
+                    </button>
+
+                    {/* Category buttons */}
+                    {filterCategories
+                        .filter(cat => cat !== "Parter" || companyType !== 'ef')
+                        .map(category => (
+                            <button
+                                key={category}
+                                onClick={() => setActiveFilter(category)}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                                    activeFilter === category
+                                        ? "bg-primary/10 text-primary"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                )}
+                            >
+                                {category}
+                            </button>
+                        ))}
                 </div>
 
-                {/* Content Search Results (Deep Search) */}
-                {contentResults.length > 0 && (
+                {/* Content Search Results (Deep Search) - ONLY when NOT in a category */}
+                {contentResults.length > 0 && activeFilter === null && (
                     <div className="space-y-4 mb-8">
                         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3">
                             Hittade i dina data
@@ -201,8 +221,8 @@ export default function SokPage() {
                                         href={result.href}
                                         className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/50 rounded-lg group"
                                     >
-                                        <div className={cn("flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", result.colorClass)}>
-                                            <FileText className="h-4 w-4" />
+                                        <div className={cn("flex-shrink-0 w-6 h-6 rounded flex items-center justify-center", result.colorClass)}>
+                                            <FileText className="h-3.5 w-3.5" />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="font-medium text-sm text-foreground/90">{result.title}</div>
@@ -226,40 +246,132 @@ export default function SokPage() {
                     </div>
                 )}
 
-                {/* Category page navigation - only shows when filter is selected */}
-                {activeFilter !== null && (
-                    <div className="space-y-2 mb-8">
-                        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3">
-                            {activeFilter}
-                        </h3>
-                        {filteredItems.map(item => (
-                            <a
-                                key={item.id}
-                                href={item.href}
-                                className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-muted/50 rounded-lg group"
-                            >
-                                <div className={cn("flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", item.colorClass)}>
-                                    {item.icon}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <span className="font-medium text-sm text-foreground/90">
-                                        {isEnkel ? item.titleEnkel : item.title}
-                                    </span>
-                                    <div className="text-xs text-muted-foreground truncate mt-0.5">{item.description}</div>
-                                </div>
-                                <ArrowRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors" />
-                            </a>
-                        ))}
+                {/* Search loading state - only when not in category filter */}
+                {isSearching && query.length > 0 && activeFilter === null && (
+                    <div className="py-12 text-center">
+                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent mb-3" />
+                        <p className="text-sm text-muted-foreground">Söker...</p>
                     </div>
                 )}
 
-                {/* Empty state when no search and no filter */}
-                {activeFilter === null && query.length < 2 && contentResults.length === 0 && (
-                    <div className="py-16 text-center">
-                        <p className="text-muted-foreground mb-2">Sök efter transaktioner, kvitton eller dokument</p>
-                        <p className="text-sm text-muted-foreground/70">eller välj en kategori ovan</p>
+                {/* No results state - global search */}
+                {!isSearching && query.length >= 2 && contentResults.length === 0 && activeFilter === null && (
+                    <div className="py-12 text-center">
+                        <p className="text-muted-foreground mb-2">Inga träffar för "{query}"</p>
+                        <p className="text-sm text-muted-foreground/70">Prova ett annat sökord eller välj en kategori</p>
                     </div>
                 )}
+
+                {/* Typing hint (before deep search kicks in) */}
+                {!isSearching && query.length > 0 && query.length < 2 && activeFilter === null && (
+                    <div className="py-12 text-center">
+                        <p className="text-sm text-muted-foreground">Skriv minst 2 tecken för att söka</p>
+                    </div>
+                )}
+
+                {/* Category page navigation - only shows when filter is selected */}
+                {activeFilter !== null && (
+                    <div className="space-y-4 mb-8">
+                        {/* Header with back button */}
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-medium text-foreground">
+                                {activeFilter}
+                                {query.length > 0 && (
+                                    <span className="text-muted-foreground font-normal ml-2">
+                                        · "{query}"
+                                    </span>
+                                )}
+                            </h3>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setActiveFilter(null)}
+                                className="text-xs text-muted-foreground"
+                            >
+                                ← Tillbaka
+                            </Button>
+                        </div>
+
+                        {/* Deep search results - when inside category */}
+                        {contentResults.length > 0 && (
+                            <div className="space-y-3">
+                                {contentResults.map(group => (
+                                    <div key={group.category}>
+                                        <div className="text-xs font-medium text-muted-foreground mb-2 px-1">
+                                            {group.category}
+                                        </div>
+                                        {group.results.map(result => (
+                                            <a
+                                                key={result.id}
+                                                href={result.href}
+                                                className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/50 rounded-lg group"
+                                            >
+                                                <div className={cn("flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", result.colorClass)}>
+                                                    <FileText className="h-4 w-4" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium text-sm text-foreground/90">{result.title}</div>
+                                                    <div className="text-xs text-muted-foreground">{result.subtitle}</div>
+                                                </div>
+                                                {result.amount && (
+                                                    <div className="text-sm font-medium">{result.amount}</div>
+                                                )}
+                                                <ArrowRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors" />
+                                            </a>
+                                        ))}
+                                        <a
+                                            href={group.viewAllHref}
+                                            className="block text-xs text-primary hover:underline px-4 py-2"
+                                        >
+                                            Visa alla i {group.category} →
+                                        </a>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Loading state when searching within category */}
+                        {isSearching && query.length > 0 && (
+                            <div className="py-8 text-center">
+                                <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent mb-2" />
+                                <p className="text-sm text-muted-foreground">Söker...</p>
+                            </div>
+                        )}
+
+                        {/* Category navigation items - only show when no search query */}
+                        {query.length === 0 && filteredItems.length > 0 && (
+                            <div className="space-y-1">
+                                {filteredItems.map(item => (
+                                    <a
+                                        key={item.id}
+                                        href={item.href}
+                                        className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-muted/50 rounded-lg group"
+                                    >
+                                        <div className={cn("flex-shrink-0 w-6 h-6 rounded flex items-center justify-center", item.colorClass)}>
+                                            {item.icon}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="font-medium text-sm text-foreground/90">
+                                                {isEnkel ? item.titleEnkel : item.title}
+                                            </span>
+                                            <div className="text-xs text-muted-foreground truncate mt-0.5">{item.description}</div>
+                                        </div>
+                                        <ArrowRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors" />
+                                    </a>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* No results - only show if deep search also has no results and query exists */}
+                        {!isSearching && query.length >= 2 && contentResults.length === 0 && (
+                            <div className="py-8 text-center">
+                                <p className="text-muted-foreground">Inga träffar för "{query}" i {activeFilter}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+
             </div>
         </div>
     )

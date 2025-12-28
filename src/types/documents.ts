@@ -71,4 +71,72 @@ export interface ReceiptDocumentData {
     notes?: string
 }
 
-export type DocumentData = InvoiceDocumentData | ReceiptDocumentData
+export type DocumentData = InvoiceDocumentData | ReceiptDocumentData | CorporateDocumentData
+
+// ============================================
+// Corporate & Compliance Documents
+// ============================================
+
+/**
+ * Signature request status
+ */
+export type SignatureStatus = 'pending' | 'signed' | 'declined' | 'expired'
+
+/**
+ * Signature on a document
+ */
+export interface SignatureRequest {
+    id: string
+    signerId: string           // User or Party ID
+    signerName: string
+    signerEmail?: string
+    status: SignatureStatus
+    requestedAt: Date
+    signedAt?: Date
+    method?: 'manual' | 'bankid' | 'email'  // Manual = uploaded signed PDF
+}
+
+/**
+ * Corporate document types
+ */
+export type CorporateDocumentType =
+    | 'board_protocol'        // Styrelseprotokoll
+    | 'shareholder_protocol'  // Bolagsstämmoprotokoll
+    | 'authority_form'        // Myndighetsformulär
+    | 'statute_amendment'     // Bolagsordningsändring
+    | 'other'
+
+/**
+ * Corporate document data for corporate actions
+ */
+export interface CorporateDocumentData {
+    type: 'corporate'
+    documentType: CorporateDocumentType
+
+    // Identity
+    id: string
+    title: string
+    description?: string
+
+    // Version control
+    version: number
+    createdAt: Date
+    updatedAt: Date
+
+    // Content
+    templateId?: string        // Reference to template used
+    content?: string           // HTML or markdown content
+    filePath?: string          // Path to generated PDF
+
+    // Signatures
+    signatures: SignatureRequest[]
+    requiredSignatures: number // How many need to sign
+
+    // Status derived from signatures
+    isFullySigned: boolean
+
+    // Linking
+    relatedEventId?: string    // Links to HändelseEvent
+    relatedActionId?: string   // Links to a corporate action
+}
+

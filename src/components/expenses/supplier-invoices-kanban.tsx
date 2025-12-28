@@ -12,6 +12,8 @@ import {
     CreditCard,
     Eye,
     Banknote,
+    Calendar,
+    ChevronDown,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -19,6 +21,9 @@ import { useToast } from "@/components/ui/toast"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
 import { useTextMode } from "@/providers/text-mode-provider"
 import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
     DropdownMenuLabel,
     DropdownMenuItem,
     DropdownMenuSeparator,
@@ -63,7 +68,16 @@ export const SupplierInvoicesKanban = forwardRef<SupplierInvoicesKanbanRef>(
         const [isLoading, setIsLoading] = useState(true)
         const [selectedInvoice, setSelectedInvoice] = useState<SupplierInvoice | null>(null)
         const [dialogOpen, setDialogOpen] = useState(false)
+        const [periodFilter, setPeriodFilter] = useState<'week' | 'month' | 'quarter' | 'all'>('all')
         const toast = useToast()
+
+        // Period filter labels
+        const periodLabels = {
+            week: 'Denna vecka',
+            month: 'Denna månad',
+            quarter: 'Detta kvartal',
+            all: 'Alla'
+        }
 
         // Fetch supplier invoices from API
         const fetchInvoices = useCallback(async () => {
@@ -116,14 +130,43 @@ export const SupplierInvoicesKanban = forwardRef<SupplierInvoicesKanbanRef>(
             refresh: fetchInvoices
         }))
 
+        // Filter invoices by period
+        const filteredInvoices = useMemo(() => {
+            if (periodFilter === 'all') return invoices
+
+            const now = new Date()
+            let startDate: Date
+
+            switch (periodFilter) {
+                case 'week':
+                    startDate = new Date(now)
+                    startDate.setDate(now.getDate() - 7)
+                    break
+                case 'month':
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+                    break
+                case 'quarter':
+                    const quarterMonth = Math.floor(now.getMonth() / 3) * 3
+                    startDate = new Date(now.getFullYear(), quarterMonth, 1)
+                    break
+                default:
+                    return invoices
+            }
+
+            return invoices.filter(inv => {
+                const invoiceDate = new Date(inv.invoiceDate)
+                return invoiceDate >= startDate
+            })
+        }, [invoices, periodFilter])
+
         // Group invoices by status
         const invoicesByStatus = useMemo(() => {
             const grouped: Record<string, SupplierInvoice[]> = {}
             SUPPLIER_KANBAN_COLUMNS.forEach(col => {
-                grouped[col.status] = invoices.filter(inv => inv.status === col.status)
+                grouped[col.status] = filteredInvoices.filter(inv => inv.status === col.status)
             })
             return grouped
-        }, [invoices])
+        }, [filteredInvoices])
 
         // Stats
         const stats = useMemo(() => {
@@ -182,9 +225,15 @@ export const SupplierInvoicesKanban = forwardRef<SupplierInvoicesKanbanRef>(
         return (
             <div className="w-full space-y-6">
                 {/* Page Heading */}
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">{text.supplierInvoices.title}</h2>
-                    <p className="text-muted-foreground">Hantera fakturor från dina leverantörer.</p>
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 className="text-2xl font-bold tracking-tight">{text.supplierInvoices.title}</h2>
+                        <p className="text-muted-foreground">{text.supplierInvoices.subtitle}</p>
+                    </div>
+                    <Button className="gap-2" onClick={() => setDialogOpen(true)}>
+                        <Plus className="h-4 w-4" />
+                        {text.supplierInvoices.addInvoice}
+                    </Button>
                 </div>
 
                 {/* Stats Cards */}
@@ -219,13 +268,35 @@ export const SupplierInvoicesKanban = forwardRef<SupplierInvoicesKanbanRef>(
                 {/* Section Separator */}
                 <div className="border-b-2 border-border/60" />
 
-                {/* Kanban Header */}
+                {/* Kanban Section */}
                 <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">Leverantörsfakturor</h2>
-                    <Button size="sm" onClick={() => setDialogOpen(true)}>
-                        <Plus className="h-4 w-4 mr-1.5" />
-                        Lägg till faktura
-                    </Button>
+                    <h3 className="text-lg font-semibold">{text.supplierInvoices.title}</h3>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-1.5">
+                                <Calendar className="h-3.5 w-3.5" />
+                                {periodLabels[periodFilter]}
+                                <ChevronDown className="h-3.5 w-3.5" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Visa period</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setPeriodFilter('week')}>
+                                Denna vecka
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPeriodFilter('month')}>
+                                Denna månad
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPeriodFilter('quarter')}>
+                                Detta kvartal
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setPeriodFilter('all')}>
+                                Alla
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
 
                 {/* Kanban Board */}

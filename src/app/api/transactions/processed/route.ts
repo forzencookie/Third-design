@@ -1,7 +1,7 @@
 /**
  * Processed Transactions API
  * 
- * This endpoint fetches NAKED transactions from the Bank API
+ * This endpoint reads transactions from the local database
  * and processes them through the transaction-processor service to
  * add display properties (icons, colors, status, AI suggestions).
  * 
@@ -12,7 +12,6 @@ import { NextResponse } from "next/server"
 import {
   processTransactions,
   type NakedTransaction,
-  type ProcessedTransaction
 } from "@/services/transaction-processor"
 import { db } from "@/lib/server-db"
 
@@ -22,50 +21,34 @@ import { db } from "@/lib/server-db"
  */
 export async function GET() {
   try {
-    // 1. Fetch from the unified Bank API
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseUrl}/api/bank/transactions`, {
-      cache: 'no-store'
-    })
+    // 1. Read from local database
+    const dbData = await db.get()
+    const rawTransactions = dbData.transactions || []
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch from bank API')
-    }
-
-    const data = await response.json()
-
-    // 2. Transform bank transactions to naked transaction format
-    const nakedTransactions: NakedTransaction[] = (data.transactions || []).map((bt: any) => ({
-      id: bt.id,
-      name: bt.description,
-      amount: bt.amount,
-      date: bt.date,
-      account: bt.account === 'foretagskonto' ? 'Företagskonto' :
-        bt.account === 'sparkonto' ? 'Sparkonto' :
-          bt.account === 'skattekonto' ? 'Skattekonto' : bt.account,
-      reference: bt.reference,
+    // 2. Transform to naked transaction format for processing
+    const nakedTransactions: NakedTransaction[] = rawTransactions.map((tx: any) => ({
+      id: tx.id,
+      name: tx.description || tx.name,
+      amount: tx.amountValue || tx.amount,
+      date: tx.date,
+      account: tx.account || 'Företagskonto',
+      reference: tx.reference,
     }))
 
     // 3. Process (clothe) the naked transactions with AI, icons, status
-    // This gives us the "default" state for all transactions
     const processedTransactions = processTransactions(nakedTransactions)
 
-    // 4. Merge with persisted state from our local DB
-    // This ensures that if we have booked a transaction, we remember that status
-    const dbData = await db.get()
-    const persistedTransactions = dbData.transactions || []
-    const transactionMap = new Map(persistedTransactions.map((t: any) => [t.id, t]))
+    // 4. Merge with persisted metadata
+    const metadata: Record<string, any> = dbData.transactionMetadata || {}
 
     const mergedTransactions = processedTransactions.map(pt => {
-      const persisted = transactionMap.get(pt.id)
-      if (persisted) {
-        // If we know this transaction, use the persisted status and details
+      const meta = metadata[pt.id]
+      if (meta) {
         return {
           ...pt,
-          status: persisted.status || pt.status,
-          category: persisted.category || pt.category,
-          account: persisted.account || pt.account,
-          // Keep other generated props like icons unless specifically overridden
+          status: meta.status || pt.status,
+          category: meta.category || pt.category,
+          account: meta.account || pt.account,
         }
       }
       return pt
@@ -74,8 +57,8 @@ export async function GET() {
     return NextResponse.json({
       transactions: mergedTransactions,
       count: mergedTransactions.length,
-      source: "bank-api",
-      note: "Transactions fetched from bank and merged with local bookkeeping records"
+      source: "local-db",
+      note: "Transactions processed from local database"
     })
 
   } catch (error) {
@@ -86,3 +69,4 @@ export async function GET() {
     )
   }
 }
+

@@ -6,29 +6,15 @@ import {
     TrendingUp,
     Clock,
     Bot,
-    Download,
     Send,
-    FileText,
-    FileBarChart,
-    Wallet,
-    X,
-    Eye,
+    FileDown,
+    ChevronDown,
+    ChevronRight,
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
-import { IconButton } from "@/components/ui/icon-button"
-import { SearchBar } from "@/components/ui/search-bar"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { FilterButton } from "@/components/ui/filter-button"
-import {
-    DataTable,
-    DataTableHeader,
-    DataTableHeaderCell,
-    DataTableBody,
-    DataTableRow,
-    DataTableCell
-} from "@/components/ui/data-table"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -40,65 +26,203 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SectionCard } from "@/components/ui/section-card"
 import { InkomstWizardDialog } from "./ai-wizard-dialog"
-import { Ink2PreviewDialog } from "./ink2-preview-dialog"
+import { SRUPreviewDialog } from "./sru-preview-dialog"
 import { useVerifications } from "@/hooks/use-verifications"
-import { Ink2Processor } from "@/lib/ink2-processor"
+import { Ink2Processor, type Ink2FormField } from "@/lib/ink2-processor"
 import { INVOICE_STATUS_LABELS } from "@/lib/localization"
+import { cn } from "@/lib/utils"
+
+// =============================================================================
+// INK2 Form Section Component
+// =============================================================================
+
+interface FormSectionProps {
+    title: string
+    fields: Ink2FormField[]
+    defaultOpen?: boolean
+}
+
+function FormSection({ title, fields, defaultOpen = true }: FormSectionProps) {
+    const [isOpen, setIsOpen] = useState(defaultOpen)
+
+    // Calculate section total
+    const total = fields.reduce((sum, f) => sum + f.value, 0)
+
+    if (fields.length === 0) return null
+
+    return (
+        <div className="space-y-1">
+            {/* Section Header */}
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-3 py-2 hover:bg-muted/30 rounded-sm px-2 -mx-2 transition-colors"
+            >
+                {isOpen ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+                <span className="font-medium text-sm">{title}</span>
+
+                <span className={cn(
+                    "font-medium text-sm tabular-nums px-2 py-0.5 rounded-sm",
+                    total > 0 && "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-950/50",
+                    total < 0 && "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950/50",
+                    total === 0 && "text-muted-foreground bg-muted/50"
+                )}>
+                    {total > 0 && "+"}{total.toLocaleString('sv-SE')} kr
+                </span>
+
+            </button>
+
+
+            {/* Section Content */}
+            {isOpen && (
+                <div className="space-y-0.5 pl-6">
+                    {fields.map((field) => (
+                        <div
+                            key={field.field}
+                            className="flex items-start justify-between py-1.5"
+                        >
+                            <div className="flex items-start gap-3">
+                                <span className="font-mono text-xs text-muted-foreground w-10 shrink-0 pt-0.5">
+                                    {field.field}
+                                </span>
+                                <span className="text-sm">
+                                    {field.label}
+                                </span>
+                            </div>
+                            <span className={cn(
+                                "font-medium text-sm tabular-nums shrink-0 ml-4",
+                                field.value > 0 && "text-green-600 dark:text-green-400",
+                                field.value < 0 && "text-red-600 dark:text-red-400",
+                                field.value === 0 && "text-muted-foreground"
+                            )}>
+                                {field.value > 0 && "+"}{field.value.toLocaleString('sv-SE')} kr
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+
+        </div>
+    )
+}
+
+
+
+// =============================================================================
+// Main Component
+// =============================================================================
+
 
 export function InkomstdeklarationContent() {
     const { addToast: toast } = useToast()
     const { verifications } = useVerifications()
     const [showAIDialog, setShowAIDialog] = useState(false)
-    const [showPreview, setShowPreview] = useState(false)
-    const [searchQuery, setSearchQuery] = useState("")
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-    const [fieldFilter, setFieldFilter] = useState<string[]>([])
+    const [showSRUPreview, setShowSRUPreview] = useState(false)
+    const [activeFilter, setActiveFilter] = useState<"all" | "incomeStatement" | "balanceSheet" | "taxAdjustments">("all")
 
-    // Calculate real fields from ledger
-    const fields = useMemo(() => {
-        // Default to 2024 for this prototype
-        return Ink2Processor.calculateInk2(verifications, 2024)
+    // Calculate all fields from ledger
+    const calculatedData = useMemo(() => {
+        return Ink2Processor.calculateAll(verifications, 2024)
     }, [verifications])
 
-    // Calculate stats from calculated fields
+    // Calculate stats
     const stats = useMemo(() => {
-        const nettoOmsattning = fields.find(f => f.field === "1.1")?.value || 0
-        const arsResultat = fields.find(f => f.field === "4.1")?.value || 0
+        const arsResultat = calculatedData.totals.netIncome
         return {
             year: "2024",
             result: arsResultat,
             status: INVOICE_STATUS_LABELS.DRAFT,
         }
-    }, [fields])
+    }, [calculatedData])
 
-    // Filter fields based on search and category
-    const filteredFields = useMemo(() => {
-        let result = fields
+    // Group income statement fields by sub-section
+    const incomeStatementSections = useMemo(() => {
+        const sections: { title: string; fields: Ink2FormField[] }[] = []
+        const fieldsBySection = new Map<string, Ink2FormField[]>()
 
-        if (fieldFilter.length > 0) {
-            result = result.filter(field => {
-                const isIncome = field.field.startsWith("1.") || field.field === "3.1"
-                const isExpense = field.field.startsWith("2.") || field.field === "3.3"
-                const isResult = field.field.startsWith("4.") || field.label.toLowerCase().includes("resultat")
-
-                if (fieldFilter.includes("income") && isIncome) return true
-                if (fieldFilter.includes("expense") && isExpense) return true
-                if (fieldFilter.includes("result") && isResult) return true
-                return false
-            })
-        }
-
-        return result
-    }, [fieldFilter, fields])
-
-    const toggleFilter = (value: string) => {
-        setFieldFilter(prev => {
-            if (prev.includes(value)) {
-                return prev.filter(f => f !== value)
-            }
-            return [...prev, value]
+        calculatedData.incomeStatement.forEach(field => {
+            const section = field.section || "Övrigt"
+            const existing = fieldsBySection.get(section) || []
+            existing.push(field)
+            fieldsBySection.set(section, existing)
         })
-    }
+
+        // Order the sections logically
+        const sectionOrder = [
+            "Rörelseintäkter",
+            "Rörelsekostnader",
+            "Finansiella poster",
+            "Bokslutsdispositioner",
+            "Skatt och resultat"
+        ]
+
+        sectionOrder.forEach(sectionName => {
+            const fields = fieldsBySection.get(sectionName)
+            if (fields && fields.length > 0) {
+                sections.push({ title: sectionName, fields })
+            }
+        })
+
+        return sections
+    }, [calculatedData])
+
+    // Group balance sheet fields by sub-section
+    const balanceSheetSections = useMemo(() => {
+        const sections: { title: string; fields: Ink2FormField[] }[] = []
+        const fieldsBySection = new Map<string, Ink2FormField[]>()
+
+        calculatedData.balanceSheet.forEach(field => {
+            const section = field.section || "Övrigt"
+            const existing = fieldsBySection.get(section) || []
+            existing.push(field)
+            fieldsBySection.set(section, existing)
+        })
+
+        // Get unique sections in order
+        const seenSections = new Set<string>()
+        calculatedData.balanceSheet.forEach(f => {
+            if (f.section && !seenSections.has(f.section)) {
+                seenSections.add(f.section)
+                const fields = fieldsBySection.get(f.section)
+                if (fields) {
+                    sections.push({ title: f.section, fields })
+                }
+            }
+        })
+
+        return sections
+    }, [calculatedData])
+
+    // Group tax adjustment fields by sub-section
+    const taxAdjustmentSections = useMemo(() => {
+        const sections: { title: string; fields: Ink2FormField[] }[] = []
+        const fieldsBySection = new Map<string, Ink2FormField[]>()
+
+        calculatedData.taxAdjustments.forEach(field => {
+            const section = field.section || "Övrigt"
+            const existing = fieldsBySection.get(section) || []
+            existing.push(field)
+            fieldsBySection.set(section, existing)
+        })
+
+        // Get unique sections in order
+        const seenSections = new Set<string>()
+        calculatedData.taxAdjustments.forEach(f => {
+            if (f.section && !seenSections.has(f.section)) {
+                seenSections.add(f.section)
+                const fields = fieldsBySection.get(f.section)
+                if (fields) {
+                    sections.push({ title: f.section, fields })
+                }
+            }
+        })
+
+        return sections
+    }, [calculatedData])
 
     const handleSend = () => {
         toast({
@@ -107,27 +231,8 @@ export function InkomstdeklarationContent() {
         })
     }
 
-    const toggleSelection = (id: string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev)
-            if (next.has(id)) {
-                next.delete(id)
-            } else {
-                next.add(id)
-            }
-            return next
-        })
-    }
-
-    const toggleAll = () => {
-        if (selectedIds.size === filteredFields.length) {
-            setSelectedIds(new Set())
-        } else {
-            setSelectedIds(new Set(filteredFields.map(f => f.field)))
-        }
-    }
-
     return (
+
         <main className="flex-1 flex flex-col p-6">
             <div className="max-w-6xl w-full space-y-6">
                 <StatCardGrid columns={3}>
@@ -167,109 +272,141 @@ export function InkomstdeklarationContent() {
                     onOpenChange={setShowAIDialog}
                 />
 
-                <Ink2PreviewDialog
-                    open={showPreview}
-                    onOpenChange={setShowPreview}
+                <SRUPreviewDialog
+                    open={showSRUPreview}
+                    onOpenChange={setShowSRUPreview}
                 />
 
-                <DataTable
-                    title="INK2 – Fält"
-                    headerActions={
-                        <div className="flex items-center gap-2">
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <FilterButton
-                                        label="Filtrera"
-                                        isActive={fieldFilter.length > 0}
-                                        activeCount={fieldFilter.length}
-                                    />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56">
-                                    <DropdownMenuLabel>Filtrera fält</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    {/* Placeholder filters */}
-                                    <DropdownMenuCheckboxItem
-                                        checked={fieldFilter.includes("income")}
-                                        onCheckedChange={() => toggleFilter("income")}
-                                    >
-                                        Intäkter
-                                    </DropdownMenuCheckboxItem>
-                                    <DropdownMenuCheckboxItem
-                                        checked={fieldFilter.includes("expense")}
-                                        onCheckedChange={() => toggleFilter("expense")}
-                                    >
-                                        Kostnader
-                                    </DropdownMenuCheckboxItem>
-                                    <DropdownMenuCheckboxItem
-                                        checked={fieldFilter.includes("result")}
-                                        onCheckedChange={() => toggleFilter("result")}
-                                    >
-                                        Resultat
-                                    </DropdownMenuCheckboxItem>
-                                    {fieldFilter.length > 0 && (
-                                        <>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem onClick={() => setFieldFilter([])}>
-                                                <X className="h-4 w-4 mr-2" />
-                                                Rensa filter
-                                            </DropdownMenuItem>
-                                        </>
-                                    )}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                            <Button size="sm" onClick={handleSend}>
-                                <Send className="h-4 w-4 mr-1.5" />
-                                Skicka till Skatteverket
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowPreview(true)}
-                                className="mr-2"
-                            >
-                                <Eye className="h-4 w-4 mr-1.5" />
-                                Förhandsgranska
-                            </Button>
-                            <Button size="sm" onClick={handleSend}>
-                                <Send className="h-4 w-4 mr-1.5" />
-                                Skicka till Skatteverket
-                            </Button>
+
+                {/* Thick separator below AI card */}
+                <div className="border-b-2 border-border/60" />
+
+                {/* Form Header with Actions */}
+
+                <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold">
+                        {activeFilter === "all" && "INK2 – Komplett"}
+                        {activeFilter === "incomeStatement" && "INK2 – Resultaträkning"}
+                        {activeFilter === "balanceSheet" && "INK2R – Balansräkning"}
+                        {activeFilter === "taxAdjustments" && "INK2S – Skattemässiga justeringar"}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <FilterButton
+                                    label={activeFilter === "all" ? "Visa alla" : "Filtrerad"}
+                                    isActive={activeFilter !== "all"}
+                                />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-64">
+                                <DropdownMenuLabel>Visa sektion</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onClick={() => setActiveFilter("all")}
+                                    className={activeFilter === "all" ? "bg-accent" : ""}
+                                >
+                                    Visa alla (komplett INK2)
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onClick={() => setActiveFilter("incomeStatement")}
+                                    className={activeFilter === "incomeStatement" ? "bg-accent" : ""}
+                                >
+                                    Resultaträkning (3.x)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setActiveFilter("balanceSheet")}
+                                    className={activeFilter === "balanceSheet" ? "bg-accent" : ""}
+                                >
+                                    Balansräkning (2.x)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setActiveFilter("taxAdjustments")}
+                                    className={activeFilter === "taxAdjustments" ? "bg-accent" : ""}
+                                >
+                                    Skattemässiga justeringar (4.x)
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowSRUPreview(true)}
+                        >
+                            <FileDown className="h-4 w-4 mr-1.5" />
+                            Exportera SRU
+                        </Button>
+
+                        <Button size="sm" onClick={handleSend}>
+                            <Send className="h-4 w-4 mr-1.5" />
+                            Skicka till Skatteverket
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Form Sections */}
+                <div className="space-y-8">
+                    {/* Income Statement */}
+                    {(activeFilter === "all" || activeFilter === "incomeStatement") && (
+                        <div className="space-y-4">
+                            {activeFilter === "all" && (
+                                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide pb-2 border-b border-border/60">
+                                    Resultaträkning (3.x)
+                                </h3>
+                            )}
+                            {incomeStatementSections.map((section, idx) => (
+                                <FormSection
+                                    key={section.title}
+                                    title={section.title}
+                                    fields={section.fields}
+                                    defaultOpen={activeFilter === "incomeStatement" || idx < 3}
+                                />
+                            ))}
                         </div>
-                    }
-                >
-                    <DataTableHeader>
-                        <DataTableHeaderCell className="w-10">
-                            <Checkbox
-                                checked={selectedIds.size === filteredFields.length && filteredFields.length > 0}
-                                onCheckedChange={toggleAll}
-                            />
-                        </DataTableHeaderCell>
-                        <DataTableHeaderCell label="Fält" icon={FileText} width="96px" />
-                        <DataTableHeaderCell label="Beskrivning" icon={FileBarChart} />
-                        <DataTableHeaderCell label="Belopp" icon={Wallet} align="right" />
-                    </DataTableHeader>
-                    <DataTableBody>
-                        {filteredFields.map((item) => (
-                            <DataTableRow
-                                key={item.field}
-                                selected={selectedIds.has(item.field)}
-                            >
-                                <DataTableCell className="w-10">
-                                    <Checkbox
-                                        checked={selectedIds.has(item.field)}
-                                        onCheckedChange={() => toggleSelection(item.field)}
-                                        onClick={(e) => e.stopPropagation()}
-                                    />
-                                </DataTableCell>
-                                <DataTableCell mono muted>{item.field}</DataTableCell>
-                                <DataTableCell>{item.label}</DataTableCell>
-                                <DataTableCell align="right" bold className={item.value < 0 ? 'text-red-600 dark:text-red-500/70' : ''}>
-                                    {item.value.toLocaleString('sv-SE')} kr
-                                </DataTableCell>
-                            </DataTableRow>
-                        ))}
-                    </DataTableBody>
-                </DataTable>
+                    )}
+
+                    {/* Balance Sheet */}
+
+                    {(activeFilter === "all" || activeFilter === "balanceSheet") && (
+                        <div className="space-y-4">
+                            {activeFilter === "all" && (
+                                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide pb-2 border-b border-border/60">
+                                    Balansräkning (2.x)
+                                </h3>
+                            )}
+                            {balanceSheetSections.map((section, idx) => (
+                                <FormSection
+                                    key={section.title}
+                                    title={section.title}
+                                    fields={section.fields}
+                                    defaultOpen={activeFilter === "balanceSheet" && idx < 3}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Tax Adjustments */}
+
+                    {(activeFilter === "all" || activeFilter === "taxAdjustments") && (
+                        <div className="space-y-4">
+                            {activeFilter === "all" && (
+                                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide pb-2 border-b border-border/60">
+                                    Skattemässiga justeringar (4.x)
+                                </h3>
+                            )}
+                            {taxAdjustmentSections.map((section, idx) => (
+                                <FormSection
+                                    key={section.title}
+                                    title={section.title}
+                                    fields={section.fields}
+                                    defaultOpen={activeFilter === "taxAdjustments" && idx < 3}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+
             </div>
         </main>
     )

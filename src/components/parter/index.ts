@@ -13,3 +13,8 @@ export { Styrelseprotokoll } from './styrelseprotokoll'
 export { Bolagsstamma } from './bolagsstamma'
 export { Arsmote } from './arsmote'
 export { Medlemsregister } from './medlemsregister'
+
+// Corporate Actions & Compliance
+export { Firmatecknare } from './firmatecknare'
+export { Myndigheter } from './myndigheter'
+

@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { LegalInfoCard, legalInfoContent } from '@/components/ui/legal-info-card';
 import { useCompany } from '@/providers/company-provider';
-import { Aktiebok, Delagare, Medlemsregister, Styrelseprotokoll, Bolagsstamma, Arsmote } from '@/components/parter';
+import { Aktiebok, Delagare, Medlemsregister, Styrelseprotokoll, Bolagsstamma, Arsmote, Firmatecknare, Myndigheter } from '@/components/parter';
 import { useLastUpdated } from '@/hooks/use-last-updated';
 import {
     Users,
@@ -20,6 +20,8 @@ import {
     BookOpen,
     FileText,
     Vote,
+    PenTool,
+    Building2,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -38,6 +40,8 @@ const allTabs: TabConfig[] = [
     { id: 'styrelseprotokoll', label: 'Styrelseprotokoll', icon: FileText, feature: 'styrelseprotokoll' },
     { id: 'bolagsstamma', label: 'Bolagsstämma', icon: Vote, feature: 'bolagsstamma' },
     { id: 'arsmote', label: 'Årsmöte', icon: Vote, feature: 'arsmote' },
+    { id: 'firmatecknare', label: 'Firmatecknare', icon: PenTool, feature: null },
+    { id: 'myndigheter', label: 'Myndigheter', icon: Building2, feature: null },
 ];
 
 function ParterPageContent() {
@@ -148,6 +152,8 @@ function ParterPageContent() {
                         {currentTab === 'styrelseprotokoll' && <Styrelseprotokoll />}
                         {currentTab === 'bolagsstamma' && <Bolagsstamma />}
                         {currentTab === 'arsmote' && <Arsmote />}
+                        {currentTab === 'firmatecknare' && <Firmatecknare />}
+                        {currentTab === 'myndigheter' && <Myndigheter />}
                     </div>
                 </div>
             </div>

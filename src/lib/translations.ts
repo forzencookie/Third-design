@@ -43,6 +43,7 @@ export const translations = {
   // ============================================================================
   transactions: {
     title: { enkel: "Pengar in & ut", avancerad: "Transaktioner" },
+    subtitle: { enkel: "Alla betalningar från banken visas här.", avancerad: "Granska och bokför banktransaktioner." },
     allTransactions: { enkel: "Alla betalningar", avancerad: "Alla transaktioner" },
     newTransaction: { enkel: "Ny betalning", avancerad: "Ny transaktion" },
     toRecord: { enkel: "Att sortera", avancerad: "Att bokföra" },
@@ -86,6 +87,7 @@ export const translations = {
   // ============================================================================
   invoices: {
     title: { enkel: "Skicka fakturor", avancerad: "Kundfakturor" },
+    subtitle: { enkel: "Fakturera kunder och få betalt snabbare.", avancerad: "Skapa, skicka och följ upp betalningar." },
     create: { enkel: "Skapa faktura", avancerad: "Ny faktura" },
     send: { enkel: "Skicka", avancerad: "Skicka" },
     sendReminder: { enkel: "Skicka påminnelse", avancerad: "Skicka betalningspåminnelse" },
@@ -156,7 +158,7 @@ export const translations = {
   // ============================================================================
   assets: {
     title: { enkel: "Tillgångar", avancerad: "Anläggningsregister" },
-    subtitle: { enkel: "Hantera dina tillgångar.", avancerad: "Hantera företagets inventarier och avskrivningar." },
+    subtitle: { enkel: "Datorer, möbler och andra saker du äger.", avancerad: "Inventarier och avskrivningar enligt plan." },
     addAsset: { enkel: "Lägg till", avancerad: "Lägg till inventarie" },
     newAsset: { enkel: "Ny tillgång", avancerad: "Ny inventarie" },
     newAssetDesc: { enkel: "Lägg till en ny tillgång.", avancerad: "Lägg till en ny tillgång i anläggningsregistret." },
@@ -184,6 +186,8 @@ export const translations = {
   // ============================================================================
   supplierInvoices: {
     title: { enkel: "Fakturor att betala", avancerad: "Leverantörsfakturor" },
+    subtitle: { enkel: "Fakturor du fått från andra företag.", avancerad: "Godkänn, betala och håll koll på förfallodatum." },
+    addInvoice: { enkel: "Lägg till", avancerad: "Lägg till faktura" },
     approve: { enkel: "Godkänn", avancerad: "Attestera" },
     pay: { enkel: "Betala", avancerad: "Betala" },
     reject: { enkel: "Avslå", avancerad: "Avvisa" },
@@ -226,7 +230,7 @@ export const translations = {
   // ============================================================================
   receipts: {
     title: { enkel: "Kvitton", avancerad: "Underlag" },
-    subtitle: { enkel: "Hantera dina kvitton och underlag.", avancerad: "Hantera kvitton, fakturor och andra underlag." },
+    subtitle: { enkel: "Spara kvitton så du har koll på inköpen.", avancerad: "Ladda upp och matcha med transaktioner." },
     upload: { enkel: "Ladda upp kvitto", avancerad: "Ladda upp underlag" },
     scan: { enkel: "Fotografera kvitto", avancerad: "Skanna underlag" },
     match: { enkel: "Koppla till betalning", avancerad: "Matcha med transaktion" },

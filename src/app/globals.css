@@ -125,6 +125,14 @@
   }
 }
 
+/* Tabular numbers for financial data - ensures all digits have equal width */
+.tabular-nums,
+.financial-number,
+[data-financial="true"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" on;
+}
+
 /* Custom animations */
 @keyframes marquee {
   0% {

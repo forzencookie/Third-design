@@ -43,7 +43,7 @@ import {
 import { SectionCard } from "@/components/ui/section-card"
 import { AppStatusBadge } from "@/components/ui/status-badge"
 import { useToast } from "@/components/ui/toast"
-import { BulkActionToolbar, type BulkAction } from "../shared/bulk-action-toolbar"
+import { BulkActionToolbar, useBulkSelection, type BulkAction } from "../shared/bulk-action-toolbar"
 import { MomsWizardDialog } from "./ai-wizard-dialog"
 import { MomsDetailDialog } from "./moms-detail-dialog"
 import { termExplanations } from "./constants"
@@ -76,7 +76,6 @@ export function MomsdeklarationContent() {
     const [showAIDialog, setShowAIDialog] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
     const [statusFilter, setStatusFilter] = useState<string | null>(null)
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [selectedReport, setSelectedReport] = useState<VatReport | null>(null)
     const [vatPeriods, setVatPeriods] = useState<VatReport[]>([])
 
@@ -119,26 +118,14 @@ export function MomsdeklarationContent() {
         })
     }, [searchQuery, statusFilter, vatPeriods])
 
-    // Toggle selection
-    const toggleSelection = (id: string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev)
-            if (next.has(id)) {
-                next.delete(id)
-            } else {
-                next.add(id)
-            }
-            return next
-        })
-    }
+    // Map periods to have id for useBulkSelection
+    const periodsWithId = useMemo(() =>
+        filteredPeriods.map(p => ({ ...p, id: p.period })),
+        [filteredPeriods]
+    )
 
-    const toggleAll = () => {
-        if (selectedIds.size === filteredPeriods.length) {
-            setSelectedIds(new Set())
-        } else {
-            setSelectedIds(new Set(filteredPeriods.map(p => p.period)))
-        }
-    }
+    // Use shared bulk selection hook
+    const selection = useBulkSelection(periodsWithId)
 
     // Bulk actions
     const bulkActions: BulkAction[] = [
@@ -150,7 +137,7 @@ export function MomsdeklarationContent() {
             onClick: (ids) => {
                 setVatPeriods(prev => prev.filter(p => !ids.includes(p.period)))
                 toast.success("Rapporter borttagna", `${ids.length} momsrapport(er) har tagits bort`)
-                setSelectedIds(new Set())
+                selection.clearSelection()
             },
         },
         {
@@ -162,7 +149,7 @@ export function MomsdeklarationContent() {
                     ids.includes(p.period) ? { ...p, status: "submitted" as const } : p
                 ))
                 toast.success("Rapporter skickade", `${ids.length} momsdeklaration(er) skickades till Skatteverket`)
-                setSelectedIds(new Set())
+                selection.clearSelection()
             },
         },
         {
@@ -184,7 +171,7 @@ export function MomsdeklarationContent() {
                     URL.revokeObjectURL(url)
                 })
                 toast.success("Nerladdat", `${ids.length} fil(er) har laddats ner.`)
-                setSelectedIds(new Set())
+                selection.clearSelection()
             },
         },
     ]
@@ -287,8 +274,8 @@ export function MomsdeklarationContent() {
                     <DataTableHeader>
                         <DataTableHeaderCell className="w-10">
                             <Checkbox
-                                checked={selectedIds.size === filteredPeriods.length && filteredPeriods.length > 0}
-                                onCheckedChange={toggleAll}
+                                checked={selection.allSelected && filteredPeriods.length > 0}
+                                onCheckedChange={selection.toggleAll}
                             />
                         </DataTableHeaderCell>
                         <DataTableHeaderCell label="Period" icon={Calendar} />
@@ -303,14 +290,14 @@ export function MomsdeklarationContent() {
                         {filteredPeriods.map((item) => (
                             <DataTableRow
                                 key={item.period}
-                                selected={selectedIds.has(item.period)}
+                                selected={selection.isSelected(item.period)}
                                 onClick={() => setSelectedReport(item)}
                                 className="cursor-pointer"
                             >
                                 <DataTableCell className="w-10" onClick={(e) => e?.stopPropagation()}>
                                     <Checkbox
-                                        checked={selectedIds.has(item.period)}
-                                        onCheckedChange={() => toggleSelection(item.period)}
+                                        checked={selection.isSelected(item.period)}
+                                        onCheckedChange={() => selection.toggleItem(item.period)}
                                     />
                                 </DataTableCell>
                                 <DataTableCell bold>{item.period}</DataTableCell>
@@ -361,9 +348,9 @@ export function MomsdeklarationContent() {
                 </DataTable>
 
                 <BulkActionToolbar
-                    selectedCount={selectedIds.size}
-                    selectedIds={Array.from(selectedIds)}
-                    onClearSelection={() => setSelectedIds(new Set())}
+                    selectedCount={selection.selectedCount}
+                    selectedIds={selection.selectedIds}
+                    onClearSelection={selection.clearSelection}
                     actions={bulkActions}
                 />
 

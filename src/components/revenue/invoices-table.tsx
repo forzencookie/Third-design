@@ -56,18 +56,9 @@ import {
     DialogFooter,
     DialogClose,
 } from "@/components/ui/dialog"
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { BulkActionToolbar, useBulkSelection, type BulkAction } from "../shared/bulk-action-toolbar"
+import { DeleteConfirmDialog, useDeleteConfirmation } from "@/components/shared/delete-confirm-dialog"
 import { Trash2, Download } from "lucide-react"
 import { InvoiceCreateDialog } from "./invoice-create-dialog"
 
@@ -85,8 +76,9 @@ export function InvoicesTable() {
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
     const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
     const [reminderSent, setReminderSent] = useState<string | null>(null)
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-    const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null)
+
+    // Delete confirmation using shared hook
+    const deleteConfirmation = useDeleteConfirmation()
 
     // Fetch invoices from API
     const fetchInvoices = useCallback(async () => {
@@ -207,17 +199,15 @@ export function InvoicesTable() {
     ], [text, toast])
 
     const handleDeleteClick = (id: string) => {
-        setInvoiceToDelete(id)
-        setDeleteDialogOpen(true)
+        deleteConfirmation.requestDelete(id)
     }
 
     const handleConfirmDelete = () => {
-        if (invoiceToDelete) {
-            setInvoices(prev => prev.filter(inv => inv.id !== invoiceToDelete))
+        const id = deleteConfirmation.confirmDelete()
+        if (id) {
+            setInvoices(prev => prev.filter(inv => inv.id !== id))
             toast.success("Borttagen", "Fakturan har tagits bort")
         }
-        setDeleteDialogOpen(false)
-        setInvoiceToDelete(null)
     }
 
     const handleInvoiceCreated = (newInvoice: Invoice) => {
@@ -328,25 +318,10 @@ export function InvoicesTable() {
             <div className="border-b-2 border-border/60" />
 
             {/* Delete Confirmation Dialog */}
-            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>{text.confirm.areYouSure}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {text.confirm.cannotUndo}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{text.actions.cancel}</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleConfirmDelete}
-                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-                        >
-                            {text.actions.delete}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <DeleteConfirmDialog
+                {...deleteConfirmation.dialogProps}
+                onConfirm={handleConfirmDelete}
+            />
 
             {/* New Invoice Dialog - Extracted Component */}
             <InvoiceCreateDialog

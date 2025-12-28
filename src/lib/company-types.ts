@@ -4,6 +4,71 @@
 // and their available features
 // ============================================
 
+// ============================================
+// Team Roles & Permissions (RBAC)
+// ============================================
+
+/**
+ * Team member roles for permission control
+ */
+export type TeamRole = 'owner' | 'partner' | 'senior' | 'junior' | 'viewer'
+
+/**
+ * Available permissions in the system
+ */
+export type Permission =
+  | 'create_document'       // Create drafts
+  | 'edit_document'         // Edit existing documents
+  | 'delete_document'       // Delete documents
+  | 'request_signature'     // Send signature requests
+  | 'sign_document'         // Sign documents
+  | 'submit_to_authority'   // Submit to Bolagsverket/Skatteverket
+  | 'approve_action'        // Approve corporate actions
+  | 'manage_team'           // Invite/remove team members
+
+/**
+ * Role-based permission mapping
+ */
+export const rolePermissions: Record<TeamRole, Permission[]> = {
+  owner: [
+    'create_document', 'edit_document', 'delete_document',
+    'request_signature', 'sign_document', 'submit_to_authority',
+    'approve_action', 'manage_team',
+  ],
+  partner: [
+    'create_document', 'edit_document', 'delete_document',
+    'request_signature', 'sign_document', 'submit_to_authority',
+    'approve_action',
+  ],
+  senior: [
+    'create_document', 'edit_document',
+    'request_signature', 'sign_document',
+    'approve_action',
+  ],
+  junior: [
+    'create_document', 'edit_document',
+  ],
+  viewer: [],
+}
+
+/**
+ * Check if a role has a specific permission
+ */
+export function hasPermission(role: TeamRole, permission: Permission): boolean {
+  return rolePermissions[role].includes(permission)
+}
+
+/**
+ * Role display metadata
+ */
+export const teamRoleMeta: Record<TeamRole, { label: string; description: string }> = {
+  owner: { label: 'Ägare', description: 'Full tillgång till allt' },
+  partner: { label: 'Partner', description: 'Kan godkänna och skicka in' },
+  senior: { label: 'Senior', description: 'Kan signera och godkänna' },
+  junior: { label: 'Junior', description: 'Kan skapa och redigera' },
+  viewer: { label: 'Visare', description: 'Kan bara se' },
+}
+
 // Company type identifiers
 export type CompanyType = 'ab' | 'ef' | 'hb' | 'kb' | 'forening';
 

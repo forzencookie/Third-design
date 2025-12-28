@@ -21,8 +21,6 @@ export * from "./calendar-processor"
 // Simulator services - for testing/demo
 export * from "./myndigheter-client"
 
-// Bank client utilities (legacy - prefer using /api/bank endpoints directly)
+// Bank utilities - internal/testing only (no external bank API integration yet)
 export * as BankSimulator from "./bank-client"
 
-// Note: bank-transaction-service removed to avoid duplicate exports
-// Use /api/bank endpoints instead for bank transaction flow

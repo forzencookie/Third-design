@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/data-table"
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card"
 import { SectionCard } from "@/components/ui/section-card"
-import { BulkActionToolbar, type BulkAction } from "@/components/shared/bulk-action-toolbar"
+import { BulkActionToolbar, useBulkSelection, type BulkAction } from "@/components/shared/bulk-action-toolbar"
 import { useTableFilter, useTableSort, commonSortHandlers } from "@/hooks/use-table"
 import { useTextMode } from "@/providers/text-mode-provider"
 
@@ -71,7 +71,6 @@ export function TransactionsTable({
     const [newTransactionDialogOpen, setNewTransactionDialogOpen] = useState(false)
     const [selectedTransactions, setSelectedTransactions] = useState<TransactionWithAI[]>([])
     const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
     const filter = useTableFilter<TransactionWithAI>({
         searchFields: ["name", "account", "amount"],
@@ -88,34 +87,6 @@ export function TransactionsTable({
         }
     })
 
-    const handleTransactionClick = useCallback((transaction: TransactionWithAI) => {
-        // Toggle selection when clicking on a row
-        setSelectedIds(prev => {
-            const next = new Set(prev)
-            if (next.has(transaction.id)) {
-                next.delete(transaction.id)
-            } else {
-                next.add(transaction.id)
-            }
-            return next
-        })
-    }, [])
-
-    const handleBook = useCallback(async (bookingData: BookingData) => {
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 500))
-
-        // Call the parent callback with full booking data
-        if (onTransactionBooked) {
-            onTransactionBooked(bookingData.entityId, bookingData)
-        }
-
-        // Close dialog and clear selection
-        setBookingDialogOpen(false)
-        setSelectedTransactions([])
-        setSelectedIds(new Set())
-    }, [onTransactionBooked])
-
     const handleSortChange = useCallback((newSortBy: "date" | "amount" | "name") => {
         sort.toggleSort(newSortBy)
     }, [sort])
@@ -125,25 +96,22 @@ export function TransactionsTable({
         return sort.sortItems(filtered)
     }, [transactions, filter, sort])
 
-    const toggleSelection = useCallback((id: string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev)
-            if (next.has(id)) {
-                next.delete(id)
-            } else {
-                next.add(id)
-            }
-            return next
-        })
-    }, [])
+    // Use shared bulk selection hook
+    const selection = useBulkSelection(filteredTransactions)
 
-    const toggleAll = useCallback(() => {
-        if (selectedIds.size === filteredTransactions.length) {
-            setSelectedIds(new Set())
-        } else {
-            setSelectedIds(new Set(filteredTransactions.map(t => t.id)))
+    const handleTransactionClick = useCallback((transaction: TransactionWithAI) => {
+        selection.toggleItem(transaction.id)
+    }, [selection])
+
+    const handleBook = useCallback(async (bookingData: BookingData) => {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        if (onTransactionBooked) {
+            onTransactionBooked(bookingData.entityId, bookingData)
         }
-    }, [selectedIds, filteredTransactions])
+        setBookingDialogOpen(false)
+        setSelectedTransactions([])
+        selection.clearSelection()
+    }, [onTransactionBooked, selection])
 
     // Calculate stats for the stat cards
     const stats = useMemo(() => {
@@ -197,6 +165,18 @@ export function TransactionsTable({
 
     return (
         <div className="w-full space-y-6">
+            {/* Page Heading */}
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight">{text.transactions.title}</h2>
+                    <p className="text-muted-foreground">{text.transactions.subtitle}</p>
+                </div>
+                <Button className="gap-2" onClick={() => setNewTransactionDialogOpen(true)}>
+                    <Plus className="h-4 w-4" />
+                    {text.transactions.newTransaction}
+                </Button>
+            </div>
+
             <StatCardGrid columns={4}>
                 <StatCard
                     label={text.stats.totalTransactions}
@@ -282,18 +262,14 @@ export function TransactionsTable({
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <Button size="sm" className="h-8 gap-1" onClick={() => setNewTransactionDialogOpen(true)}>
-                            <Plus className="h-3.5 w-3.5" />
-                            {text.actions.new}
-                        </Button>
                     </div>
                 }
             >
                 <DataTableHeader>
                     <DataTableHeaderCell className="w-10">
                         <Checkbox
-                            checked={selectedIds.size === filteredTransactions.length && filteredTransactions.length > 0}
-                            onCheckedChange={toggleAll}
+                            checked={selection.allSelected && filteredTransactions.length > 0}
+                            onCheckedChange={selection.toggleAll}
                         />
                     </DataTableHeaderCell>
                     <DataTableHeaderCell icon={Building2} label={text.labels.supplier} />
@@ -308,8 +284,8 @@ export function TransactionsTable({
                             key={transaction.id}
                             transaction={transaction}
                             onClick={() => handleTransactionClick(transaction)}
-                            selected={selectedIds.has(transaction.id)}
-                            onToggleSelection={() => toggleSelection(transaction.id)}
+                            selected={selection.isSelected(transaction.id)}
+                            onToggleSelection={() => selection.toggleItem(transaction.id)}
                         />
                     ))}
                     {filteredTransactions.length === 0 && (
@@ -327,9 +303,9 @@ export function TransactionsTable({
 
             {/* Bulk Action Toolbar - appears when items are selected */}
             <BulkActionToolbar
-                selectedCount={selectedIds.size}
-                selectedIds={Array.from(selectedIds)}
-                onClearSelection={() => setSelectedIds(new Set())}
+                selectedCount={selection.selectedCount}
+                selectedIds={selection.selectedIds}
+                onClearSelection={selection.clearSelection}
                 actions={bulkActions}
             />
 

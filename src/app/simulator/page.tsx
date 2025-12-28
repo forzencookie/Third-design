@@ -271,22 +271,23 @@ export default function SimulatorPage() {
   const [integrations, setIntegrations] = useState<Record<string, boolean>>({})
   const [lastInboxItem, setLastInboxItem] = useState<any>(null)
 
-  // Fetch data from Bank API
+  // Fetch data from local transactions API
   const fetchRecentData = useCallback(async () => {
     try {
-      const response = await fetch('/api/bank')
+      const response = await fetch('/api/transactions')
       const data = await response.json()
 
-      setRecentTransactions((data.transactions || []).slice(0, 10).map((tx: BankTransaction) => ({
+      const transactions = data.data || data.transactions || []
+      setRecentTransactions(transactions.slice(0, 10).map((tx: any) => ({
         id: tx.id,
-        name: tx.description,
-        amount: tx.amount,
+        name: tx.name || tx.description,
+        amount: tx.amountValue || tx.amount,
         date: tx.date,
         account: tx.account,
         reference: tx.reference,
       })))
     } catch (error) {
-      console.error('Failed to fetch bank data:', error)
+      console.error('Failed to fetch transactions:', error)
     }
   }, [])
 
@@ -472,10 +473,7 @@ export default function SimulatorPage() {
     setMessage(null)
 
     try {
-      // Clear bank data via API
-      await fetch('/api/bank', { method: 'DELETE' })
-
-      // Also clear receipts
+      // Clear receipts
       await fetch('/api/mock/receipts', { method: 'DELETE' })
 
       // Clear inbox 
@@ -484,10 +482,10 @@ export default function SimulatorPage() {
         body: JSON.stringify({ action: 'clear' })
       })
 
-      // Refresh from bank
+      // Refresh transactions list
       await fetchRecentData()
       setRecentReceipts([])
-      setMessage({ type: 'success', text: '✓ Bank och simulator data återställd' })
+      setMessage({ type: 'success', text: '✓ Simulator data återställd' })
     } catch (error) {
       setMessage({ type: 'error', text: 'Nätverksfel - kunde inte nå API' })
     } finally {

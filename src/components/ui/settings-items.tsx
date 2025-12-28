@@ -171,6 +171,7 @@ export interface IntegrationCardProps {
     name: string
     description: string
     connected?: boolean
+    comingSoon?: boolean
     onConnect?: () => void
     onDisconnect?: () => void
 }
@@ -179,6 +180,7 @@ export function IntegrationCard({
     name,
     description,
     connected = false,
+    comingSoon = false,
     onConnect,
     onDisconnect,
 }: IntegrationCardProps) {
@@ -188,13 +190,19 @@ export function IntegrationCard({
                 <p className="font-medium text-sm">{name}</p>
                 <p className="text-xs text-muted-foreground">{description}</p>
             </div>
-            <Button
-                variant={connected ? "outline" : "default"}
-                size="sm"
-                onClick={connected ? onDisconnect : onConnect}
-            >
-                {connected ? "Ansluten" : "Anslut"}
-            </Button>
+            {comingSoon ? (
+                <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                    Kommer snart
+                </span>
+            ) : (
+                <Button
+                    variant={connected ? "outline" : "default"}
+                    size="sm"
+                    onClick={connected ? onDisconnect : onConnect}
+                >
+                    {connected ? "Ansluten" : "Anslut"}
+                </Button>
+            )}
         </div>
     )
 }

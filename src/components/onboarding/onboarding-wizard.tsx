@@ -272,60 +272,19 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
                 </div>
               )}
 
-              {step.id === "bank" && step.integrations && !showMoreBanks && (
-                <div className="grid grid-cols-3 gap-3 max-w-md mx-auto">
-                  {step.integrations.map((bank) => (
-                    <button
-                      key={bank.name}
-                      className={cn(
-                        "relative flex flex-col items-center gap-2 p-4 rounded-lg border transition-all hover:border-primary hover:bg-primary/5",
-                        bank.popular ? "border-border" : "border-border/50"
-                      )}
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-lg font-semibold">
-                        {bank.name.charAt(0)}
-                      </div>
-                      <span className="text-sm font-medium">{bank.name}</span>
-                      {bank.popular && (
-                        <span className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-medium">
-                          Populär
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setShowMoreBanks(true)}
-                    className="flex flex-col items-center gap-2 p-4 rounded-lg border border-dashed border-border/50 text-muted-foreground hover:border-border hover:text-foreground transition-all"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                      +
-                    </div>
-                    <span className="text-sm">Fler banker</span>
-                  </button>
-                </div>
-              )}
-
-              {step.id === "bank" && step.moreBanks && showMoreBanks && (
-                <div className="max-w-lg mx-auto">
-                  <button
-                    onClick={() => setShowMoreBanks(false)}
-                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
-                  >
-                    <ChevronRight className="h-4 w-4 rotate-180" />
-                    Tillbaka till populära banker
-                  </button>
-                  <div className="grid grid-cols-4 gap-3">
-                    {step.moreBanks.map((bank) => (
-                      <button
-                        key={bank.name}
-                        className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border/50 transition-all hover:border-primary hover:bg-primary/5"
-                      >
-                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-lg font-semibold">
-                          {bank.name.charAt(0)}
-                        </div>
-                        <span className="text-sm font-medium text-center">{bank.name}</span>
-                      </button>
-                    ))}
+              {step.id === "bank" && (
+                <div className="max-w-md mx-auto text-center">
+                  <div className="p-6 rounded-lg border-2 border-dashed border-border bg-muted/30">
+                    <CreditCard className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="font-medium mb-2">Bankintegration kommer snart</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Vi arbetar på att erbjuda säker bankintegration via Open Banking.
+                      Under tiden kan du importera transaktioner manuellt eller via SIE-fil.
+                    </p>
+                    <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary">
+                      <Sparkles className="h-3 w-3" />
+                      Kommer snart
+                    </span>
                   </div>
                 </div>
               )}

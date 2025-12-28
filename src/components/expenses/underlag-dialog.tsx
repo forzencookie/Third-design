@@ -1,13 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import {
     Calendar,
     UploadCloud,
     FileText,
     CheckCircle2,
-    Loader2,
     X,
     Building2,
     Banknote,
@@ -19,10 +18,7 @@ import {
     Camera,
     RefreshCw
 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
     Dialog,
@@ -31,17 +27,22 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
 import { UploadDropzone, FilePreview } from "@/components/ui/upload-dropzone"
 import { RECEIPT_STATUSES, type ReceiptStatus } from "@/lib/status-types"
 import { AiProcessingState } from "@/components/shared"
 import { type Receipt } from "@/data/receipts"
+import { FormField, FormFieldRow } from "@/components/ui/form-field"
+import { useFileCapture } from "@/hooks/use-file-capture"
+
+// Category options for select
+const CATEGORY_OPTIONS = [
+    { value: "Övriga kostnader", label: "Övriga kostnader" },
+    { value: "Kontorsmaterial", label: "Kontorsmaterial" },
+    { value: "Programvara", label: "Programvara" },
+    { value: "Resekostnader", label: "Resekostnader" },
+    { value: "Representation", label: "Representation" },
+    { value: "IT-utrustning", label: "IT-utrustning" },
+]
 
 // AI processing states
 type AiState = 'idle' | 'processing' | 'preview' | 'error'
@@ -66,6 +67,16 @@ interface UnderlagDialogProps {
     onSave?: (data: UnderlagFormState) => void
 }
 
+const initialFormState: UnderlagFormState = {
+    supplier: "",
+    date: new Date().toISOString().split('T')[0],
+    amount: "",
+    moms: "",
+    category: "Övriga kostnader",
+    status: RECEIPT_STATUSES.PENDING,
+    file: null
+}
+
 export function UnderlagDialog({
     open,
     onOpenChange,
@@ -76,79 +87,12 @@ export function UnderlagDialog({
     const [activeTab, setActiveTab] = useState<"manual" | "ai">("manual")
     const [aiState, setAiState] = useState<AiState>('idle')
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
-    const [imagePreview, setImagePreview] = useState<string | null>(null)
-    const cameraInputRef = useRef<HTMLInputElement>(null)
-
-    const [formState, setFormState] = useState<UnderlagFormState>({
-        supplier: "",
-        date: new Date().toISOString().split('T')[0],
-        amount: "",
-        moms: "",
-        category: "Övriga kostnader",
-        status: RECEIPT_STATUSES.PENDING,
-        file: null
-    })
-
-    // Reset or populate form when dialog opens
-    useEffect(() => {
-        if (open) {
-            if (receipt && mode !== "create") {
-                setFormState({
-                    supplier: receipt.supplier,
-                    date: receipt.date,
-                    amount: receipt.amount,
-                    moms: "", // Receipt type doesn't have moms yet, default to empty or calculate if we had it
-                    category: receipt.category,
-                    status: receipt.status as ReceiptStatus,
-                    file: null,
-                    fileName: receipt.attachment
-                })
-                setActiveTab("manual")
-            } else {
-                setFormState({
-                    supplier: "",
-                    date: new Date().toISOString().split('T')[0],
-                    amount: "",
-                    moms: "", // Reset to empty
-                    category: "Övriga kostnader",
-                    status: RECEIPT_STATUSES.PENDING,
-                    file: null
-                })
-                setActiveTab("manual")
-                setAiState('idle')
-                setErrorMessage(null)
-                setImagePreview(null)
-            }
-        }
-    }, [open, receipt, mode])
-
-    // Generate image preview when file is selected
-    const generateImagePreview = (file: File) => {
-        if (file.type.startsWith('image/')) {
-            const reader = new FileReader()
-            reader.onload = (e) => {
-                setImagePreview(e.target?.result as string)
-            }
-            reader.readAsDataURL(file)
-        } else {
-            setImagePreview(null)
-        }
-    }
-
-    // Handle file selection for manual mode (no AI)
-    const handleManualFileSelect = (files: File[]) => {
-        if (files.length > 0) {
-            const file = files[0]
-            setFormState(prev => ({ ...prev, file }))
-            generateImagePreview(file)
-        }
-    }
+    const [formState, setFormState] = useState<UnderlagFormState>(initialFormState)
 
     // Process file with AI
     const processWithAI = async (file: File) => {
         setAiState('processing')
         setErrorMessage(null)
-        generateImagePreview(file)
 
         try {
             const formData = new FormData()
@@ -163,7 +107,6 @@ export function UnderlagDialog({
 
             if (result.success && result.data) {
                 const { supplier, date, amount, moms, category } = result.data
-
                 setFormState(prev => ({
                     ...prev,
                     supplier: supplier?.value || supplier || prev.supplier,
@@ -173,12 +116,8 @@ export function UnderlagDialog({
                     category: category?.value || category || prev.category,
                     status: RECEIPT_STATUSES.REVIEW_NEEDED
                 }))
-
                 setAiState('preview')
-
-                if (result.warning) {
-                    setErrorMessage(result.warning)
-                }
+                if (result.warning) setErrorMessage(result.warning)
             } else {
                 throw new Error(result.error || 'Failed to extract data')
             }
@@ -189,35 +128,41 @@ export function UnderlagDialog({
         }
     }
 
-    // Handle file selection for AI mode
-    const handleAiFileSelect = async (files: File[]) => {
-        if (files.length === 0) return
-        const file = files[0]
-        setFormState(prev => ({ ...prev, file }))
-        await processWithAI(file)
-    }
-
-    // Handle camera capture
-    const handleCameraCapture = () => {
-        cameraInputRef.current?.click()
-    }
-
-    const handleCameraChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files
-        if (files && files.length > 0) {
-            const file = files[0]
+    // Use shared file capture hook
+    const fileCapture = useFileCapture({
+        onFileSelected: async (file) => {
             setFormState(prev => ({ ...prev, file }))
-            await processWithAI(file)
+            if (activeTab === 'ai') {
+                await processWithAI(file)
+            }
         }
-    }
+    })
 
-    // Retry AI processing
-    const handleRetry = async () => {
-        await processWithAI(formState.file!)
-    }
+    // Reset or populate form when dialog opens
+    useEffect(() => {
+        if (open) {
+            if (receipt && mode !== "create") {
+                setFormState({
+                    supplier: receipt.supplier,
+                    date: receipt.date,
+                    amount: receipt.amount,
+                    moms: "",
+                    category: receipt.category,
+                    status: receipt.status as ReceiptStatus,
+                    file: null,
+                    fileName: receipt.attachment
+                })
+            } else {
+                setFormState(initialFormState)
+                setAiState('idle')
+                setErrorMessage(null)
+                fileCapture.clearFile()
+            }
+            setActiveTab("manual")
+        }
+    }, [open, receipt, mode])
 
     const handleAcceptAi = () => {
-        // User approved AI extraction - mark as verified
         onSave?.({ ...formState, status: RECEIPT_STATUSES.VERIFIED })
         onOpenChange(false)
     }
@@ -228,9 +173,14 @@ export function UnderlagDialog({
     }
 
     const handleSave = () => {
-        // Manual upload/save - user has reviewed, mark as verified
         onSave?.({ ...formState, status: RECEIPT_STATUSES.VERIFIED })
         onOpenChange(false)
+    }
+
+    const handleRetry = () => formState.file && processWithAI(formState.file)
+
+    const updateField = (field: keyof UnderlagFormState, value: string) => {
+        setFormState(prev => ({ ...prev, [field]: value }))
     }
 
     const isViewMode = mode === "view"
@@ -245,15 +195,8 @@ export function UnderlagDialog({
                     </DialogTitle>
                 </DialogHeader>
 
-                {/* Hidden camera input for mobile */}
-                <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={handleCameraChange}
-                />
+                {/* Hidden camera input */}
+                <input {...fileCapture.cameraInputProps} ref={fileCapture.cameraInputRef} />
 
                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
                     {!isViewMode && (
@@ -273,17 +216,17 @@ export function UnderlagDialog({
                     <TabsContent value="manual" className="space-y-4">
                         {!formState.file && !formState.fileName ? (
                             <UploadDropzone
-                                onFilesSelected={handleManualFileSelect}
+                                onFilesSelected={fileCapture.handleFileSelect}
                                 accept=".pdf,.jpg,.jpeg,.png"
                                 title="Ladda upp underlag"
                                 description="Valfritt - bifoga kvitto eller faktura"
                             />
                         ) : (
                             <div className="space-y-2">
-                                {imagePreview && (
+                                {fileCapture.imagePreview && (
                                     <div className="relative rounded-lg overflow-hidden border bg-muted/30">
                                         <img
-                                            src={imagePreview}
+                                            src={fileCapture.imagePreview}
                                             alt="Receipt preview"
                                             className="w-full max-h-32 object-contain"
                                         />
@@ -294,7 +237,7 @@ export function UnderlagDialog({
                                         file={formState.file}
                                         onRemove={() => {
                                             setFormState(prev => ({ ...prev, file: null, fileName: undefined }))
-                                            setImagePreview(null)
+                                            fileCapture.clearFile()
                                         }}
                                     />
                                 )}
@@ -308,97 +251,64 @@ export function UnderlagDialog({
                                             variant="ghost"
                                             size="icon"
                                             className="h-6 w-6"
-                                            onClick={() => {
-                                                setFormState(prev => ({ ...prev, file: null, fileName: undefined }))
-                                                setImagePreview(null)
-                                            }}
+                                            onClick={() => setFormState(prev => ({ ...prev, fileName: undefined }))}
                                         >
                                             <X className="h-4 w-4" />
                                         </Button>
                                     </div>
                                 )}
 
-                                <div className="grid gap-4">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="supplier" className="flex items-center gap-2">
-                                            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                                            Leverantör
-                                        </Label>
-                                        <Input
-                                            id="supplier"
-                                            value={formState.supplier}
-                                            onChange={(e) => setFormState({ ...formState, supplier: e.target.value })}
-                                            placeholder="T.ex. Adobe Systems"
+                                {/* Form Fields - Now using FormField component */}
+                                <div className="grid gap-4 pt-2">
+                                    <FormField
+                                        type="text"
+                                        label="Leverantör"
+                                        icon={Building2}
+                                        value={formState.supplier}
+                                        onChange={(v) => updateField('supplier', v)}
+                                        placeholder="T.ex. Adobe Systems"
+                                        disabled={isViewMode}
+                                    />
+
+                                    <FormFieldRow>
+                                        <FormField
+                                            type="date"
+                                            label="Datum"
+                                            icon={Calendar}
+                                            value={formState.date}
+                                            onChange={(v) => updateField('date', v)}
                                             disabled={isViewMode}
                                         />
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="date" className="flex items-center gap-2">
-                                                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                                                Datum
-                                            </Label>
-                                            <Input
-                                                id="date"
-                                                type="date"
-                                                value={formState.date}
-                                                onChange={(e) => setFormState({ ...formState, date: e.target.value })}
-                                                disabled={isViewMode}
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="amount" className="flex items-center gap-2">
-                                                <Banknote className="h-3.5 w-3.5 text-muted-foreground" />
-                                                Belopp (inkl. moms)
-                                            </Label>
-                                            <Input
-                                                id="amount"
-                                                value={formState.amount}
-                                                onChange={(e) => setFormState({ ...formState, amount: e.target.value })}
-                                                placeholder="0 kr"
-                                                disabled={isViewMode}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="moms" className="flex items-center gap-2">
-                                            <Banknote className="h-3.5 w-3.5 text-muted-foreground" />
-                                            Varav moms
-                                        </Label>
-                                        <Input
-                                            id="moms"
-                                            value={formState.moms}
-                                            onChange={(e) => setFormState({ ...formState, moms: e.target.value })}
+                                        <FormField
+                                            type="text"
+                                            label="Belopp (inkl. moms)"
+                                            icon={Banknote}
+                                            value={formState.amount}
+                                            onChange={(v) => updateField('amount', v)}
                                             placeholder="0 kr"
                                             disabled={isViewMode}
                                         />
-                                    </div>
+                                    </FormFieldRow>
 
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="category" className="flex items-center gap-2">
-                                            <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                                            Kategori
-                                        </Label>
-                                        <Select
-                                            value={formState.category}
-                                            onValueChange={(v) => setFormState({ ...formState, category: v })}
-                                            disabled={isViewMode}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Välj kategori" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Övriga kostnader">Övriga kostnader</SelectItem>
-                                                <SelectItem value="Kontorsmaterial">Kontorsmaterial</SelectItem>
-                                                <SelectItem value="Programvara">Programvara</SelectItem>
-                                                <SelectItem value="Resekostnader">Resekostnader</SelectItem>
-                                                <SelectItem value="Representation">Representation</SelectItem>
-                                                <SelectItem value="IT-utrustning">IT-utrustning</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                    <FormField
+                                        type="text"
+                                        label="Varav moms"
+                                        icon={Banknote}
+                                        value={formState.moms}
+                                        onChange={(v) => updateField('moms', v)}
+                                        placeholder="0 kr"
+                                        disabled={isViewMode}
+                                    />
+
+                                    <FormField
+                                        type="select"
+                                        label="Kategori"
+                                        icon={Tag}
+                                        value={formState.category}
+                                        onChange={(v) => updateField('category', v)}
+                                        options={CATEGORY_OPTIONS}
+                                        disabled={isViewMode}
+                                    />
                                 </div>
                             </div>
                         )}
@@ -409,20 +319,13 @@ export function UnderlagDialog({
                         {aiState === 'idle' && (
                             <div className="space-y-4">
                                 <UploadDropzone
-                                    onFilesSelected={handleAiFileSelect}
+                                    onFilesSelected={fileCapture.handleFileSelect}
                                     accept=".pdf,.jpg,.jpeg,.png"
                                     title="Ladda upp för AI-skanning"
                                     description="AI läser av all information automatiskt"
                                 />
-
-                                {/* Camera button for mobile */}
                                 <div className="flex justify-center">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleCameraCapture}
-                                        className="gap-2"
-                                    >
+                                    <Button variant="outline" size="sm" onClick={fileCapture.triggerCamera} className="gap-2">
                                         <Camera className="h-4 w-4" />
                                         Ta foto med kamera
                                     </Button>
@@ -432,13 +335,7 @@ export function UnderlagDialog({
 
                         {aiState === 'processing' && (
                             <AiProcessingState
-                                messages={[
-                                    "Analyserar kvittot...",
-                                    "Läser av text...",
-                                    "Identifierar belopp...",
-                                    "Snart klar...",
-                                    "Nästan där..."
-                                ]}
+                                messages={["Analyserar kvittot...", "Läser av text...", "Identifierar belopp...", "Snart klar..."]}
                                 subtext="Leverantör, belopp, datum och moms"
                             />
                         )}
@@ -468,13 +365,11 @@ export function UnderlagDialog({
 
                         {aiState === 'preview' && (
                             <div className="space-y-4">
-                                {/* Success header */}
                                 <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800/30">
                                     <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                                     <p className="font-medium text-green-900 dark:text-green-100 text-sm">Analys klar!</p>
                                 </div>
 
-                                {/* Warning */}
                                 {errorMessage && (
                                     <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/20 rounded text-xs text-amber-800 dark:text-amber-200">
                                         <AlertCircle className="h-3 w-3 shrink-0" />
@@ -482,20 +377,12 @@ export function UnderlagDialog({
                                     </div>
                                 )}
 
-                                {/* Preview with image */}
                                 <div className="flex gap-4">
-                                    {/* Image thumbnail */}
-                                    {imagePreview && (
+                                    {fileCapture.imagePreview && (
                                         <div className="w-24 h-32 rounded-lg overflow-hidden border bg-muted/30 shrink-0">
-                                            <img
-                                                src={imagePreview}
-                                                alt="Receipt"
-                                                className="w-full h-full object-cover"
-                                            />
+                                            <img src={fileCapture.imagePreview} alt="Receipt" className="w-full h-full object-cover" />
                                         </div>
                                     )}
-
-                                    {/* Extracted data */}
                                     <div className="flex-1 space-y-3">
                                         <div>
                                             <p className="text-xs text-muted-foreground">Leverantör</p>
@@ -524,7 +411,6 @@ export function UnderlagDialog({
                                     </div>
                                 </div>
 
-                                {/* Actions */}
                                 <div className="flex gap-3 pt-2">
                                     <Button variant="outline" className="flex-1 gap-2" onClick={handleEditAi}>
                                         <Pencil className="h-4 w-4" />
@@ -540,7 +426,6 @@ export function UnderlagDialog({
                     </TabsContent>
                 </Tabs>
 
-                {/* Footer for manual tab */}
                 {(activeTab === 'manual' || isViewMode) && (
                     <DialogFooter className="mt-4">
                         {!isViewMode ? (

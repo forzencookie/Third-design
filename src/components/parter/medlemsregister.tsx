@@ -55,6 +55,7 @@ import { type MembershipStatus, type MembershipChangeType } from "@/lib/status-t
 import { mockMembers, mockMembershipChanges, type Member, type MembershipChange } from "@/data/ownership"
 import { useVerifications } from "@/hooks/use-verifications"
 import { useToast } from "@/components/ui/toast"
+import { useBulkSelection } from "@/components/shared/bulk-action-toolbar"
 
 // Default membership fee per type
 const MEMBERSHIP_FEES: Record<Member['membershipType'], number> = {
@@ -93,7 +94,6 @@ export function Medlemsregister() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // New Member Form State
   const [newName, setNewName] = useState("")
@@ -150,25 +150,8 @@ export function Medlemsregister() {
     }
   }
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(id)) {
-        newSet.delete(id)
-      } else {
-        newSet.add(id)
-      }
-      return newSet
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredMembers.length) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(filteredMembers.map(m => m.id)))
-    }
-  }
+  // Use shared bulk selection hook (must be after filteredMembers is defined)
+  const memberSelection = useBulkSelection(filteredMembers)
 
   const handleAddMember = async () => {
     if (!newName) {
@@ -297,9 +280,9 @@ export function Medlemsregister() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {selectedIds.size > 0 && (
+        {memberSelection.selectedCount > 0 && (
           <div className="flex items-center gap-2 ml-4">
-            <span className="text-sm text-muted-foreground">{selectedIds.size} valda</span>
+            <span className="text-sm text-muted-foreground">{memberSelection.selectedCount} valda</span>
             <Button variant="outline" size="sm">
               <Mail className="h-4 w-4 mr-2" />
               Skicka e-post
@@ -396,8 +379,8 @@ export function Medlemsregister() {
             <tr className="border-b border-border/40 text-left text-muted-foreground">
               <th className="w-10 px-4 py-3">
                 <Checkbox
-                  checked={selectedIds.size === filteredMembers.length && filteredMembers.length > 0}
-                  onCheckedChange={toggleSelectAll}
+                  checked={memberSelection.allSelected}
+                  onCheckedChange={memberSelection.toggleAll}
                 />
               </th>
               <th className="px-4 py-3 font-medium">Medlem</th>
@@ -415,13 +398,13 @@ export function Medlemsregister() {
                 key={member.id}
                 className={cn(
                   "border-b border-border/40 hover:bg-muted/30 transition-colors",
-                  selectedIds.has(member.id) && "bg-primary/5"
+                  memberSelection.isSelected(member.id) && "bg-primary/5"
                 )}
               >
                 <td className="px-4 py-3">
                   <Checkbox
-                    checked={selectedIds.has(member.id)}
-                    onCheckedChange={() => toggleSelect(member.id)}
+                    checked={memberSelection.isSelected(member.id)}
+                    onCheckedChange={() => memberSelection.toggleItem(member.id)}
                   />
                 </td>
                 <td className="px-4 py-3">

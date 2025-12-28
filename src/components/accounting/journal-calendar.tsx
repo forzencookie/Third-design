@@ -83,7 +83,7 @@ const formatRevenue = (amount: number): string => {
     if (amount === 0) return "0 kr"
     const absAmount = Math.abs(amount)
     const sign = amount < 0 ? "-" : ""
-    
+
     // Use full numbers for up to 5 figures (99 999), use tn for 6+ figures (100 000+)
     if (absAmount >= 100000) {
         const formatted = (absAmount / 1000).toFixed(0)
@@ -194,7 +194,7 @@ export function JournalCalendar() {
                                 <span className="text-xs font-medium">Bokföringsstatus</span>
                             </div>
                             {selectedDaySummary ? (
-                                <StatusBadge 
+                                <StatusBadge
                                     status={selectedDaySummary.bookkeepingDone ? "Klart" : "Ej klart"}
                                     variant={selectedDaySummary.bookkeepingDone ? "success" : "warning"}
                                 />
@@ -210,8 +210,8 @@ export function JournalCalendar() {
                             {selectedDaySummary && selectedDaySummary.profitOrLoss !== 0 ? (
                                 <span className={cn(
                                     "text-lg font-semibold",
-                                    selectedDaySummary.profitOrLoss > 0 
-                                        ? "text-green-600 dark:text-green-500" 
+                                    selectedDaySummary.profitOrLoss > 0
+                                        ? "text-green-600 dark:text-green-500"
                                         : "text-red-600 dark:text-red-500"
                                 )}>
                                     {selectedDaySummary.profitOrLoss > 0 ? "+" : ""}{formatRevenue(selectedDaySummary.profitOrLoss)}
@@ -249,8 +249,8 @@ export function JournalCalendar() {
                                 {selectedDaySummary.notes}
                             </p>
                         ) : null}
-                        <Input 
-                            placeholder="Lägg till en anteckning..." 
+                        <Input
+                            placeholder="Lägg till en anteckning..."
                             className="h-9 text-sm"
                         />
                     </BorderedSection>
@@ -265,8 +265,8 @@ export function JournalCalendar() {
                     </h2>
                     <span className={cn(
                         "text-sm font-semibold px-2.5 py-1 rounded-md",
-                        monthlyRevenue >= 0 
-                            ? "text-green-700 bg-green-100 dark:text-green-500/70 dark:bg-green-900/20" 
+                        monthlyRevenue >= 0
+                            ? "text-green-700 bg-green-100 dark:text-green-500/70 dark:bg-green-900/20"
                             : "text-red-700 bg-red-100 dark:text-red-500/70 dark:bg-red-900/20"
                     )}>
                         {monthlyRevenue >= 0 ? "+" : ""}{formatRevenue(monthlyRevenue)}
@@ -306,8 +306,8 @@ export function JournalCalendar() {
                     V
                 </div>
                 {dayNames.map((day) => (
-                    <div 
-                        key={day} 
+                    <div
+                        key={day}
                         className="py-2 text-center text-xs text-muted-foreground font-medium"
                     >
                         {day}
@@ -315,150 +315,133 @@ export function JournalCalendar() {
                 ))}
             </div>
 
-            {/* Calendar Grid - wrapped in Card component */}
+            {/* Calendar Grid - matching app card style */}
             <div className="flex-1 flex flex-col">
-                <Card variant="square" className="flex-1 flex flex-col bg-card">
-                {/* Render calendar row by row */}
-                {Array.from({ length: Math.ceil(finalSlots / 7) }).map((_, rowIndex) => {
-                    const rowStart = rowIndex * 7
-                    const isFirstRow = rowIndex === 0
-                    const isLastRow = rowIndex === Math.ceil(finalSlots / 7) - 1
-                    
-                    // Calculate empty cells at start (first row only)
-                    const leadingEmptyCells = isFirstRow ? firstDayOfMonth : 0
-                    
-                    // Calculate empty cells at end (last row only)
-                    const lastDayIndex = firstDayOfMonth + daysInMonth - 1
-                    const trailingEmptyCells = isLastRow ? 6 - (lastDayIndex % 7) : 0
+                <Card className="flex-1 flex flex-col bg-card">
+                    {/* Render calendar row by row */}
+                    {Array.from({ length: Math.ceil(finalSlots / 7) }).map((_, rowIndex) => {
+                        const rowStart = rowIndex * 7
+                        const isFirstRow = rowIndex === 0
+                        const isLastRow = rowIndex === Math.ceil(finalSlots / 7) - 1
 
-                    // Get week number for this row (use first valid day in the row)
-                    const firstDayInRow = Math.max(1, rowStart - firstDayOfMonth + 1)
-                    const weekDate = new Date(year, month, Math.min(firstDayInRow, daysInMonth))
-                    const weekNumber = getWeekNumber(weekDate)
-                    
-                    return (
-                        <div key={rowIndex} className="grid grid-cols-[auto_repeat(7,1fr)] flex-1 border-b-2 border-border/60 last:border-b-0">
-                            {/* Week number */}
-                            <div className="w-8 flex items-center justify-center text-xs text-muted-foreground font-medium border-r-2 border-border/60">
-                                {weekNumber}
-                            </div>
-                            
-                            {/* Leading empty cells (first row) */}
-                            {isFirstRow && leadingEmptyCells > 0 && (
-                                <div 
-                                    className={cn(
-                                        "bg-muted/30",
-                                        leadingEmptyCells < 7 && "border-r-2 border-border/60"
-                                    )}
-                                    style={{ gridColumn: `span ${leadingEmptyCells}` }}
-                                />
-                            )}
-                            
-                            {/* Valid day cells for this row */}
-                            {Array.from({ length: 7 }).map((_, colIndex) => {
-                                const index = rowStart + colIndex
-                                const dayNumber = index - firstDayOfMonth + 1
-                                const isValidDay = dayNumber > 0 && dayNumber <= daysInMonth
-                                
-                                // Skip if this is part of leading or trailing empty section
-                                if (isFirstRow && colIndex < leadingEmptyCells) return null
-                                if (isLastRow && colIndex > 6 - trailingEmptyCells) return null
-                                if (!isValidDay) return null
-                                
-                                // Check if this is today
-                                const today = new Date()
-                                const isToday = isValidDay &&
-                                    dayNumber === today.getDate() &&
-                                    month === today.getMonth() &&
-                                    year === today.getFullYear()
+                        // Get week number for this row (use first valid day in the row)
+                        const firstDayInRow = Math.max(1, rowStart - firstDayOfMonth + 1)
+                        const weekDate = new Date(year, month, Math.min(firstDayInRow, daysInMonth))
+                        const weekNumber = getWeekNumber(weekDate)
 
-                                // Check if first day of month
-                                const isFirstOfMonth = dayNumber === 1
+                        return (
+                            <div key={rowIndex} className={cn(
+                                "grid grid-cols-[auto_repeat(7,1fr)] flex-1",
+                                !isLastRow && "border-b border-border/60"
+                            )}>
+                                {/* Week number */}
+                                <div className="w-10 flex items-center justify-center text-xs text-muted-foreground font-medium border-r border-border/60">
+                                    {weekNumber}
+                                </div>
 
-                                // Get events for this day (shown on cards)
-                                const dayEvents = sampleEvents.filter(event => 
-                                    event.date.getDate() === dayNumber &&
-                                    event.date.getMonth() === month &&
-                                    event.date.getFullYear() === year
-                                )
+                                {/* Day cells */}
+                                {Array.from({ length: 7 }).map((_, colIndex) => {
+                                    const index = rowStart + colIndex
+                                    const dayNumber = index - firstDayOfMonth + 1
+                                    const isValidDay = dayNumber > 0 && dayNumber <= daysInMonth
+                                    const isLastCol = colIndex === 6
 
-                                // Get daily summary for revenue display
-                                const daySummary = sampleDailySummaries.find(summary => 
-                                    summary.date.getDate() === dayNumber &&
-                                    summary.date.getMonth() === month &&
-                                    summary.date.getFullYear() === year
-                                )
+                                    // Empty placeholder for invalid days
+                                    if (!isValidDay) {
+                                        return (
+                                            <div
+                                                key={index}
+                                                className={cn(
+                                                    "bg-muted/30",
+                                                    !isLastCol && "border-r border-border/60"
+                                                )}
+                                            />
+                                        )
+                                    }
 
-                                return (
-                                    <div
-                                        key={index}
-                                        className={cn(
-                                            "relative min-h-[110px] transition-all overflow-hidden flex flex-col cursor-pointer",
-                                            colIndex < 6 && "border-r-2 border-border/60",
-                                            "hover:bg-muted/50",
-                                            isToday && "bg-primary/5"
-                                        )}
-                                        onClick={() => setSelectedDay({ day: dayNumber, month, year })}
-                                    >
-                                        {/* Day number and revenue */}
-                                        <div className="p-2 flex items-start justify-between">
-                                            {/* Day number */}
-                                            <span className={cn(
-                                                "text-sm font-medium",
-                                                isToday 
-                                                    ? "bg-foreground text-background w-6 h-6 rounded-full flex items-center justify-center" 
-                                                    : "text-foreground"
-                                            )}>
-                                                {isFirstOfMonth ? `${dayNumber} ${monthNames[month].slice(0, 3)}` : dayNumber}
-                                            </span>
-                                            {/* Revenue display */}
-                                            {daySummary && daySummary.profitOrLoss !== 0 && (
-                                                <span className={cn(
-                                                    "text-xs font-medium",
-                                                    daySummary.profitOrLoss > 0 
-                                                        ? "text-green-600 dark:text-green-500" 
-                                                        : "text-red-600 dark:text-red-500"
-                                                )}>
-                                                    {formatRevenue(daySummary.profitOrLoss)}
-                                                </span>
+                                    // Check if this is today
+                                    const today = new Date()
+                                    const isToday = dayNumber === today.getDate() &&
+                                        month === today.getMonth() &&
+                                        year === today.getFullYear()
+
+                                    // Check if first day of month
+                                    const isFirstOfMonth = dayNumber === 1
+
+                                    // Get events for this day
+                                    const dayEvents = sampleEvents.filter(event =>
+                                        event.date.getDate() === dayNumber &&
+                                        event.date.getMonth() === month &&
+                                        event.date.getFullYear() === year
+                                    )
+
+                                    // Get daily summary for revenue display
+                                    const daySummary = sampleDailySummaries.find(summary =>
+                                        summary.date.getDate() === dayNumber &&
+                                        summary.date.getMonth() === month &&
+                                        summary.date.getFullYear() === year
+                                    )
+
+                                    return (
+                                        <div
+                                            key={index}
+                                            className={cn(
+                                                "min-h-[90px] flex flex-col cursor-pointer transition-colors",
+                                                !isLastCol && "border-r border-border/60",
+                                                "hover:bg-muted/30",
+                                                isToday && "bg-primary/5"
                                             )}
-                                        </div>
-
-                                        {/* Spacer to push badges to bottom */}
-                                        <div className="flex-1" />
-
-                                        {/* Event badges - showing upcoming events */}
-                                        {dayEvents.length > 0 && (
-                                            <div className="px-1.5 pb-1.5 space-y-0.5">
-                                                {dayEvents.slice(0, 2).map((event) => (
-                                                    <StatusBadge
-                                                        key={event.id}
-                                                        status={event.title}
-                                                        variant={eventTypeToVariant[event.type]}
-                                                        className="w-full justify-start text-[10px] truncate px-1.5 py-0"
-                                                    />
-                                                ))}
-                                                {dayEvents.length > 2 && (
-                                                    <span className="text-[10px] text-muted-foreground px-1">
-                                                        +{dayEvents.length - 2} mer
+                                            onClick={() => setSelectedDay({ day: dayNumber, month, year })}
+                                        >
+                                            {/* Day header */}
+                                            <div className="p-2 flex items-start justify-between">
+                                                <span className={cn(
+                                                    "text-sm font-medium leading-none",
+                                                    isToday
+                                                        ? "bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center"
+                                                        : "text-foreground"
+                                                )}>
+                                                    {isFirstOfMonth ? `${dayNumber} ${monthNames[month].slice(0, 3)}` : dayNumber}
+                                                </span>
+                                                {daySummary && daySummary.profitOrLoss !== 0 && (
+                                                    <span className={cn(
+                                                        "text-[11px] font-medium",
+                                                        daySummary.profitOrLoss > 0
+                                                            ? "text-green-600 dark:text-green-500"
+                                                            : "text-red-600 dark:text-red-500"
+                                                    )}>
+                                                        {formatRevenue(daySummary.profitOrLoss)}
                                                     </span>
                                                 )}
                                             </div>
-                                        )}
-                                    </div>
-                                )
-                            })}
-                            
-                            {/* Trailing empty cells (last row) - no right border since it's at the edge */}
-                            {isLastRow && trailingEmptyCells > 0 && (
-                                <div 
-                                    className="bg-muted/30"
-                                    style={{ gridColumn: `span ${trailingEmptyCells}` }}
-                                />
-                            )}
-                        </div>
-                    )
-                })}
+
+                                            {/* Spacer */}
+                                            <div className="flex-1" />
+
+                                            {/* Event badges */}
+                                            {dayEvents.length > 0 && (
+                                                <div className="px-1 pb-1 space-y-0.5">
+                                                    {dayEvents.slice(0, 2).map((event) => (
+                                                        <StatusBadge
+                                                            key={event.id}
+                                                            status={event.title}
+                                                            variant={eventTypeToVariant[event.type]}
+                                                            className="w-full justify-start text-[10px] truncate px-1.5 py-0"
+                                                        />
+                                                    ))}
+                                                    {dayEvents.length > 2 && (
+                                                        <span className="text-[10px] text-muted-foreground px-0.5">
+                                                            +{dayEvents.length - 2} mer
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )
+                    })}
                 </Card>
             </div>
         </div>

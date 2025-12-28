@@ -93,7 +93,7 @@ export const TransactionRow = memo(function TransactionRow({
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{transaction.date}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                         <div>
-                            <div className={cn("font-medium", transaction.amount.startsWith("+") ? "text-green-600 dark:text-green-500/70" : "text-foreground")}>
+                            <div className={cn("font-medium tabular-nums", transaction.amount.startsWith("+") ? "text-green-600 dark:text-green-500/70" : "text-foreground")}>
                                 {transaction.amount}
                             </div>
                             {transaction.vatAmount !== undefined && (
@@ -243,7 +243,7 @@ export function TransactionDetailsDialog({
                             </div>
                             <div>
                                 <p className="text-sm text-muted-foreground">Belopp</p>
-                                <p className={cn("font-medium", transaction.amount.startsWith("+") ? "text-green-600 dark:text-green-500/70" : "")}>
+                                <p className={cn("font-medium tabular-nums", transaction.amount.startsWith("+") ? "text-green-600 dark:text-green-500/70" : "")}>
                                     {transaction.amount}
                                 </p>
                             </div>

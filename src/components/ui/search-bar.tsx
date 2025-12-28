@@ -11,6 +11,7 @@ interface SearchBarProps {
   onChange: (value: string) => void
   className?: string
   showClear?: boolean
+  size?: 'default' | 'lg'
 }
 
 export function SearchBar({
@@ -19,25 +20,35 @@ export function SearchBar({
   onChange,
   className,
   showClear = true,
+  size = 'default',
 }: SearchBarProps) {
+  const isLarge = size === 'lg'
+
   return (
     <div className={cn("relative w-56", className)}>
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <Search className={cn(
+        "absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground",
+        isLarge ? "h-5 w-5 left-4" : "h-4 w-4"
+      )} />
       <Input
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          "pl-9 h-8 border-2 border-border/60",
-          showClear && value && "pr-8"
+          "border-2 border-border/60",
+          isLarge ? "pl-12 h-12 text-base rounded-xl" : "pl-9 h-8",
+          showClear && value && (isLarge ? "pr-10" : "pr-8")
         )}
       />
       {showClear && value && (
         <button
           onClick={() => onChange("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          className={cn(
+            "absolute top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground",
+            isLarge ? "right-4" : "right-3"
+          )}
         >
-          <X className="h-4 w-4" />
+          <X className={cn(isLarge ? "h-5 w-5" : "h-4 w-4")} />
         </button>
       )}
     </div>

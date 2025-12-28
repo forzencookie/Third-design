@@ -14,6 +14,7 @@ import {
     AlertTriangle,
     FileText,
     TrendingUp,
+    ChevronDown,
 } from "lucide-react"
 import { cn, formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -77,7 +78,9 @@ const KANBAN_COLUMNS: KanbanColumn[] = [
     },
 ]
 
-// Invoice Card Component
+// Invoice Card Component - uses shared KanbanCard
+import { KanbanCard } from "@/components/shared/kanban"
+
 function InvoiceCard({
     invoice,
     onSend,
@@ -94,90 +97,49 @@ function InvoiceCard({
     const isOverdue = invoice.status === INVOICE_STATUS_LABELS.OVERDUE ||
         (invoice.status === INVOICE_STATUS_LABELS.SENT && new Date(invoice.dueDate) < new Date())
 
+    // VAT tag as extraTags
+    const vatTag = invoice.vatAmount && invoice.vatAmount > 0 ? (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+            +moms
+        </span>
+    ) : null
+
     return (
-        <div className="bg-background rounded-lg border-2 border-border/60 p-4 hover:shadow-md transition-all cursor-pointer group">
-            {/* Client Label */}
-            <div className="text-xs text-muted-foreground mb-2">
-                Kund: {invoice.customer}
-            </div>
-
-            {/* Invoice Title */}
-            <h4 className="font-medium text-sm mb-3 line-clamp-2">
-                Faktura {invoice.id}
-            </h4>
-
-            {/* Tags */}
-            <div className="flex flex-wrap gap-1.5 mb-3">
-                <span className={cn(
-                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
-                    isOverdue
-                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                )}>
-                    {formatCurrency(invoice.amount)}
-                </span>
-                {invoice.vatAmount && invoice.vatAmount > 0 && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                        +moms
-                    </span>
-                )}
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/40">
-                <div className="flex items-center gap-3">
-                    {/* Due date */}
-                    <div className={cn(
-                        "flex items-center gap-1",
-                        isOverdue && "text-red-600 dark:text-red-400"
-                    )}>
-                        <Calendar className="h-3 w-3" />
-                        <span>{invoice.dueDate}</span>
-                    </div>
-                </div>
-
-                {/* Actions Menu */}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuLabel>Åtgärder</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => onViewDetails(invoice)}>
-                            Visa detaljer
-                        </DropdownMenuItem>
-                        {invoice.status === INVOICE_STATUS_LABELS.DRAFT && (
-                            <DropdownMenuItem onClick={() => onSend(invoice.id)}>
-                                <Send className="h-3.5 w-3.5 mr-2" />
-                                Skicka faktura
-                            </DropdownMenuItem>
-                        )}
-                        {(invoice.status === INVOICE_STATUS_LABELS.SENT || invoice.status === INVOICE_STATUS_LABELS.OVERDUE) && (
-                            <>
-                                <DropdownMenuItem onClick={() => onMarkPaid(invoice.id)}>
-                                    <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
-                                    Markera betald
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => onSendReminder(invoice.id)}>
-                                    <Mail className="h-3.5 w-3.5 mr-2" />
-                                    Skicka påminnelse
-                                </DropdownMenuItem>
-                            </>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600">
-                            Radera
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
-        </div>
+        <KanbanCard
+            title={`Faktura ${invoice.id}`}
+            subtitle={`Kund: ${invoice.customer}`}
+            amount={invoice.amount}
+            date={invoice.dueDate}
+            isOverdue={isOverdue}
+            extraTags={vatTag}
+        >
+            <DropdownMenuLabel>Åtgärder</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => onViewDetails(invoice)}>
+                Visa detaljer
+            </DropdownMenuItem>
+            {invoice.status === INVOICE_STATUS_LABELS.DRAFT && (
+                <DropdownMenuItem onClick={() => onSend(invoice.id)}>
+                    <Send className="h-3.5 w-3.5 mr-2" />
+                    Skicka faktura
+                </DropdownMenuItem>
+            )}
+            {(invoice.status === INVOICE_STATUS_LABELS.SENT || invoice.status === INVOICE_STATUS_LABELS.OVERDUE) && (
+                <>
+                    <DropdownMenuItem onClick={() => onMarkPaid(invoice.id)}>
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
+                        Markera betald
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onSendReminder(invoice.id)}>
+                        <Mail className="h-3.5 w-3.5 mr-2" />
+                        Skicka påminnelse
+                    </DropdownMenuItem>
+                </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-red-600">
+                Radera
+            </DropdownMenuItem>
+        </KanbanCard>
     )
 }
 
@@ -277,7 +239,16 @@ export function InvoicesKanban() {
     const [isLoading, setIsLoading] = useState(true)
     const [newInvoiceDialogOpen, setNewInvoiceDialogOpen] = useState(false)
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+    const [periodFilter, setPeriodFilter] = useState<'week' | 'month' | 'quarter' | 'all'>('all')
     const toast = useToast()
+
+    // Period filter labels
+    const periodLabels = {
+        week: 'Denna vecka',
+        month: 'Denna månad',
+        quarter: 'Detta kvartal',
+        all: 'Alla'
+    }
 
     // Fetch invoices from API
     const fetchInvoices = useCallback(async () => {
@@ -320,14 +291,43 @@ export function InvoicesKanban() {
         fetchInvoices()
     }, [fetchInvoices])
 
+    // Filter invoices by period
+    const filteredInvoices = useMemo(() => {
+        if (periodFilter === 'all') return invoices
+
+        const now = new Date()
+        let startDate: Date
+
+        switch (periodFilter) {
+            case 'week':
+                startDate = new Date(now)
+                startDate.setDate(now.getDate() - 7)
+                break
+            case 'month':
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+                break
+            case 'quarter':
+                const quarterMonth = Math.floor(now.getMonth() / 3) * 3
+                startDate = new Date(now.getFullYear(), quarterMonth, 1)
+                break
+            default:
+                return invoices
+        }
+
+        return invoices.filter(inv => {
+            const invoiceDate = new Date(inv.issueDate)
+            return invoiceDate >= startDate
+        })
+    }, [invoices, periodFilter])
+
     // Group invoices by status
     const invoicesByStatus = useMemo(() => {
         const grouped: Record<string, Invoice[]> = {}
         KANBAN_COLUMNS.forEach(col => {
-            grouped[col.status] = invoices.filter(inv => inv.status === col.status)
+            grouped[col.status] = filteredInvoices.filter(inv => inv.status === col.status)
         })
         return grouped
-    }, [invoices])
+    }, [filteredInvoices])
 
     // Stats
     const stats = useMemo(() => {
@@ -391,9 +391,15 @@ export function InvoicesKanban() {
     return (
         <div className="w-full space-y-6">
             {/* Page Heading */}
-            <div>
-                <h2 className="text-2xl font-bold tracking-tight">{text.invoices.title}</h2>
-                <p className="text-muted-foreground">Skapa och hantera fakturor till dina kunder.</p>
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight">{text.invoices.title}</h2>
+                    <p className="text-muted-foreground">{text.invoices.subtitle}</p>
+                </div>
+                <Button className="gap-2" onClick={() => setNewInvoiceDialogOpen(true)}>
+                    <Plus className="h-4 w-4" />
+                    {text.invoices.create}
+                </Button>
             </div>
 
             {/* Stats Cards */}
@@ -428,13 +434,35 @@ export function InvoicesKanban() {
             {/* Section Separator */}
             <div className="border-b-2 border-border/60" />
 
-            {/* Kanban Header */}
+            {/* Kanban Section */}
             <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">{text.invoices.outgoingInvoices}</h2>
-                <Button size="sm" onClick={() => setNewInvoiceDialogOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1.5" />
-                    {text.invoices.create}
-                </Button>
+                <h3 className="text-lg font-semibold">{text.invoices.outgoingInvoices}</h3>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-1.5">
+                            <Calendar className="h-3.5 w-3.5" />
+                            {periodLabels[periodFilter]}
+                            <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Visa period</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setPeriodFilter('week')}>
+                            Denna vecka
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setPeriodFilter('month')}>
+                            Denna månad
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setPeriodFilter('quarter')}>
+                            Detta kvartal
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setPeriodFilter('all')}>
+                            Alla
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
 
             {/* Kanban Board */}

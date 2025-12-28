@@ -54,6 +54,7 @@ import {
 } from 'lucide-react';
 import { mockPartners, mockPartnerWithdrawals, Partner, PartnerWithdrawal, PARTNER_ACCOUNTS } from '@/data/ownership';
 import { useCompany } from '@/providers/company-provider';
+import { useBulkSelection } from '@/components/shared/bulk-action-toolbar';
 import { useVerifications } from '@/hooks/use-verifications';
 
 export function Delagare() {
@@ -122,8 +123,7 @@ export function Delagare() {
     ownershipPercentage: 0,
     capitalContribution: 0,
   });
-  const [selectedPartners, setSelectedPartners] = useState<Set<string>>(new Set());
-  const [selectedWithdrawals, setSelectedWithdrawals] = useState<Set<string>>(new Set());
+
 
   const totalCapital = enrichedPartners.reduce((sum, p) => sum + p.currentCapitalBalance, 0);
 
@@ -181,40 +181,9 @@ export function Delagare() {
     withdrawalFilter === 'all' || withdrawal.type === withdrawalFilter
   );
 
-  // Selection handlers
-  const togglePartner = (id: string) => {
-    setSelectedPartners(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleAllPartners = () => {
-    if (selectedPartners.size === filteredPartners.length) {
-      setSelectedPartners(new Set());
-    } else {
-      setSelectedPartners(new Set(filteredPartners.map(p => p.id)));
-    }
-  };
-
-  const toggleWithdrawal = (id: string) => {
-    setSelectedWithdrawals(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleAllWithdrawals = () => {
-    if (selectedWithdrawals.size === filteredWithdrawals.length) {
-      setSelectedWithdrawals(new Set());
-    } else {
-      setSelectedWithdrawals(new Set(filteredWithdrawals.map(w => w.id)));
-    }
-  };
+  // Use shared bulk selection hook (must be after filtered arrays are defined)
+  const partnerSelection = useBulkSelection(filteredPartners);
+  const withdrawalSelection = useBulkSelection(filteredWithdrawals);
 
   return (
     <div className="space-y-6">
@@ -364,8 +333,8 @@ export function Delagare() {
             <DataTableHeader>
               <DataTableHeaderCell className="w-10">
                 <Checkbox
-                  checked={selectedPartners.size === filteredPartners.length && filteredPartners.length > 0}
-                  onCheckedChange={toggleAllPartners}
+                  checked={partnerSelection.allSelected}
+                  onCheckedChange={partnerSelection.toggleAll}
                 />
               </DataTableHeaderCell>
               <DataTableHeaderCell label="Namn" icon={User} />
@@ -379,12 +348,12 @@ export function Delagare() {
               {filteredPartners.map((partner) => (
                 <DataTableRow
                   key={partner.id}
-                  selected={selectedPartners.has(partner.id)}
+                  selected={partnerSelection.isSelected(partner.id)}
                 >
                   <DataTableCell className="w-10">
                     <Checkbox
-                      checked={selectedPartners.has(partner.id)}
-                      onCheckedChange={() => togglePartner(partner.id)}
+                      checked={partnerSelection.isSelected(partner.id)}
+                      onCheckedChange={() => partnerSelection.toggleItem(partner.id)}
                       onClick={(e) => e.stopPropagation()}
                     />
                   </DataTableCell>
@@ -441,8 +410,8 @@ export function Delagare() {
             <DataTableHeader>
               <DataTableHeaderCell className="w-10">
                 <Checkbox
-                  checked={selectedWithdrawals.size === filteredWithdrawals.length && filteredWithdrawals.length > 0}
-                  onCheckedChange={toggleAllWithdrawals}
+                  checked={withdrawalSelection.allSelected}
+                  onCheckedChange={withdrawalSelection.toggleAll}
                 />
               </DataTableHeaderCell>
               <DataTableHeaderCell label="Datum" icon={Calendar} />
@@ -455,12 +424,12 @@ export function Delagare() {
               {filteredWithdrawals.map((withdrawal) => (
                 <DataTableRow
                   key={withdrawal.id}
-                  selected={selectedWithdrawals.has(withdrawal.id)}
+                  selected={withdrawalSelection.isSelected(withdrawal.id)}
                 >
                   <DataTableCell className="w-10">
                     <Checkbox
-                      checked={selectedWithdrawals.has(withdrawal.id)}
-                      onCheckedChange={() => toggleWithdrawal(withdrawal.id)}
+                      checked={withdrawalSelection.isSelected(withdrawal.id)}
+                      onCheckedChange={() => withdrawalSelection.toggleItem(withdrawal.id)}
                       onClick={(e) => e.stopPropagation()}
                     />
                   </DataTableCell>

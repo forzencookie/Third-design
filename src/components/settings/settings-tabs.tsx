@@ -240,12 +240,12 @@ export function IntegrationsTab() {
                 <IntegrationCard
                     name="Bankgirot"
                     description="Automatisk betalningshantering"
-                    connected
+                    comingSoon
                 />
                 <IntegrationCard
                     name="Swish"
                     description="Ta emot betalningar via Swish"
-                    connected
+                    comingSoon
                 />
                 <IntegrationCard
                     name="Google Kalender"
